@@ -118,7 +118,8 @@
     <button id="restartLoop" class="toggle">連続ループに戻る</button>
     <button id="mute" class="toggle on">🔇 ミュート</button>
     <button id="speedBtn" class="toggle">⏩ 速度 1.0x</button>
-    <button id="pick">📂 動画選択</button>
+    <button id="chooseBtn" class="toggle" hidden>🎞 動画選択</button>
+    <button id="pick">📂 開く</button>
     <button id="helpBtn" class="toggle">❔ ヘルプ</button>
     <input id="file" type="file" accept="video/*" multiple hidden />
   </div>
@@ -137,11 +138,11 @@
     <div class="fps">fps <input id="fps" type="number" min="1" max="1000" step="1" value="30" /> <span>（コマ送り用）</span></div>
   </div>
 
-  <div class="playlist" id="playlist"></div>
+  <div class="playlist" id="playlist" hidden></div>
 
   <div class="hint" id="hint" hidden>
-    ・「📂 動画選択」で動画を1本以上選ぶと、1→2→…→N→1 の順に連続ループ再生します。<br>
-    ・プレイリストの動画をタップすると「その動画だけ繰り返し」。「連続ループに戻る」で通常ループに復帰。<br>
+    ・「📂 開く」で動画を1本以上選ぶと、1→2→…→N→1 の順に連続ループ再生します。<br>
+    ・「🎞 動画選択」を押すと開いた動画の一覧が出て、選んだ動画だけを繰り返します。「連続ループに戻る」で通常ループに復帰。<br>
     ・「⛶ 全画面」で画面いっぱい表示（右下にファイル名）。全画面中は右上「全画面終了」で戻れます。<br>
     ・畳み中／全画面中は画面タップで操作バー（再生・コマ送り）が出て、数秒で消えます。<br>
     ・「⏩ 速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>
@@ -173,6 +174,7 @@
   const speedBtn = $('speedBtn');
   const speedPanel = $('speedPanel');
   const pickBtn = $('pick');
+  const chooseBtn = $('chooseBtn');
   const helpBtn = $('helpBtn');
   const hintEl = $('hint');
   const fpsInput = $('fps');
@@ -217,7 +219,13 @@
     tpPlay.textContent = video.paused ? '▶' : '⏸';
   }
   function nextInLoop() { return (current + 1) % playlist.length; }
-  function focusOn(i) { focusIndex = i; loadVideo(i, true); }
+  function focusOn(i) {
+    focusIndex = i;
+    loadVideo(i, true);
+    // close the chooser panel after a selection
+    playlistEl.hidden = true;
+    chooseBtn.classList.remove('on');
+  }
 
   fileInput.addEventListener('change', (e) => {
     const files = [...e.target.files].filter(f =>
@@ -226,6 +234,9 @@
     revokeAll();
     playlist = files.map(f => ({ name: f.name, url: URL.createObjectURL(f) }));
     focusIndex = null; current = 0;
+    chooseBtn.hidden = false;   // a chooser is only meaningful once videos exist
+    playlistEl.hidden = true;
+    chooseBtn.classList.remove('on');
     loadVideo(0, true);  // inside a user gesture -> autoplay allowed
   });
 
@@ -281,8 +292,14 @@
     speedPanel.hidden = !speedPanel.hidden;
     speedBtn.classList.toggle('on', !speedPanel.hidden);
   });
-  // "動画選択" button opens the (hidden) file picker
+  // "開く" button opens the (hidden) OS file picker
   pickBtn.addEventListener('click', () => fileInput.click());
+  // "動画選択" button toggles the list of loaded videos to choose what plays
+  chooseBtn.addEventListener('click', () => {
+    if (playlist.length === 0) return;
+    playlistEl.hidden = !playlistEl.hidden;
+    chooseBtn.classList.toggle('on', !playlistEl.hidden);
+  });
   // "ヘルプ" button toggles the explanation panel
   helpBtn.addEventListener('click', () => {
     hintEl.hidden = !hintEl.hidden;
