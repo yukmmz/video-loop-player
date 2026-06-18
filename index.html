@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#000000" />
+<link rel="manifest" href="manifest.webmanifest" />
+<title>Video Loop Player</title>
+<style>
+  :root { --bg:#0b0b0d; --panel:#16161a; --fg:#f2f2f4; --muted:#9a9aa2;
+          --accent:#3da9fc; --accent2:#2b6cb0; --line:#2a2a30; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+              font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif; }
+  body { display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:12px; padding:10px 14px;
+           border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .title { color:var(--muted); font-size:13px; margin-left:auto;
+                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%; }
+  .stage { flex:1; display:flex; align-items:center; justify-content:center;
+           background:#000; min-height:0; }
+  video { max-width:100%; max-height:100%; background:#000; }
+  .controls { padding:10px 14px; border-top:1px solid var(--line);
+              display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+           border-radius:10px; padding:12px 16px; font-size:15px; cursor:pointer;
+           min-width:48px; min-height:48px; }
+  button:active { background:#23232a; }
+  button.primary { background:var(--accent2); border-color:var(--accent); }
+  button.toggle.on { background:var(--accent2); border-color:var(--accent); }
+  label.file { background:var(--accent2); border:1px solid var(--accent);
+               border-radius:10px; padding:12px 16px; font-size:15px; cursor:pointer;
+               display:inline-flex; align-items:center; min-height:48px; }
+  label.file input { display:none; }
+  .speed { display:flex; align-items:center; gap:10px; flex:1; min-width:240px; }
+  .speed input[type=range] { flex:1; }
+  .speedval { font-variant-numeric:tabular-nums; width:56px; text-align:right; }
+  .fps { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }
+  .fps input { width:60px; background:var(--panel); color:var(--fg);
+               border:1px solid var(--line); border-radius:8px; padding:8px; font-size:14px; }
+  .playlist { display:flex; gap:8px; overflow-x:auto; padding:4px 0; }
+  .item { flex:0 0 auto; background:var(--panel); border:1px solid var(--line);
+          border-radius:10px; padding:10px 12px; font-size:13px; max-width:180px;
+          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+  .item.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  .item.focus { background:var(--accent2); }
+  .hint { color:var(--muted); font-size:12px; line-height:1.4; }
+  .empty { color:var(--muted); text-align:center; padding:24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Video Loop Player</h1>
+  <span class="title" id="title">no video</span>
+</header>
+
+<div class="stage">
+  <video id="video" playsinline webkit-playsinline muted></video>
+</div>
+
+<div class="controls">
+  <div class="row">
+    <label class="file">
+      動画を選ぶ（複数可）
+      <input id="file" type="file" accept="video/*" multiple />
+    </label>
+    <button id="playpause" class="primary">▶ 再生</button>
+    <button id="prev" title="前のコマ">⏮ コマ</button>
+    <button id="next" title="次のコマ">コマ ⏭</button>
+    <button id="restartLoop" class="toggle">連続ループに戻る</button>
+    <button id="mute" class="toggle on">🔇 ミュート</button>
+  </div>
+
+  <div class="row">
+    <div class="speed">
+      <span>速度</span>
+      <input id="speed" type="range" min="0.1" max="5" step="0.1" value="1" />
+      <span class="speedval" id="speedval">1.0x</span>
+    </div>
+    <button class="spd" data-v="0.25">0.25x</button>
+    <button class="spd" data-v="0.5">0.5x</button>
+    <button class="spd" data-v="1">1x</button>
+    <button class="spd" data-v="2">2x</button>
+    <div class="fps">fps <input id="fps" type="number" min="1" max="1000" step="1" value="30" /> <span>（コマ送り用）</span></div>
+  </div>
+
+  <div class="playlist" id="playlist">
+    <div class="empty">「動画を選ぶ」から1本以上選択してください</div>
+  </div>
+
+  <div class="hint" id="hint">
+    タップで「その動画だけ繰り返し」。「連続ループに戻る」で 1→2→…→N→1 の順再生に復帰。
+    ※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。
+  </div>
+</div>
+
+<script>
+(() => {
+  const video = document.getElementById('video');
+  const fileInput = document.getElementById('file');
+  const playpause = document.getElementById('playpause');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const restartLoop = document.getElementById('restartLoop');
+  const muteBtn = document.getElementById('mute');
+  const speed = document.getElementById('speed');
+  const speedval = document.getElementById('speedval');
+  const fpsInput = document.getElementById('fps');
+  const playlistEl = document.getElementById('playlist');
+  const titleEl = document.getElementById('title');
+
+  let playlist = [];     // [{name, url}]
+  let current = 0;       // index currently loaded
+  let focusIndex = null; // when set, repeat just that video
+
+  function revokeAll() {
+    for (const it of playlist) URL.revokeObjectURL(it.url);
+  }
+
+  function renderPlaylist() {
+    playlistEl.innerHTML = '';
+    if (playlist.length === 0) {
+      playlistEl.innerHTML = '<div class="empty">「動画を選ぶ」から1本以上選択してください</div>';
+      return;
+    }
+    playlist.forEach((it, i) => {
+      const div = document.createElement('div');
+      div.className = 'item' + (i === current ? ' active' : '')
+                    + (i === focusIndex ? ' focus' : '');
+      div.textContent = (i + 1) + '. ' + it.name;
+      div.title = it.name;
+      div.addEventListener('click', () => focusOn(i));
+      playlistEl.appendChild(div);
+    });
+  }
+
+  function loadVideo(i, autoplay = true) {
+    current = i;
+    video.src = playlist[i].url;
+    titleEl.textContent = (i + 1) + '/' + playlist.length + '  ' + playlist[i].name;
+    video.load();
+    video.playbackRate = parseFloat(speed.value);
+    renderPlaylist();
+    if (autoplay) play();
+  }
+
+  function play() {
+    video.play().then(updatePP).catch(() => updatePP());
+  }
+  function updatePP() {
+    playpause.textContent = video.paused ? '▶ 再生' : '⏸ 停止';
+  }
+
+  function nextInLoop() {
+    return (current + 1) % playlist.length;
+  }
+
+  // tap a playlist item -> focus mode (repeat just that one)
+  function focusOn(i) {
+    focusIndex = i;
+    loadVideo(i, true);
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(f.name));
+    if (files.length === 0) return;
+    revokeAll();
+    playlist = files.map(f => ({ name: f.name, url: URL.createObjectURL(f) }));
+    focusIndex = null;
+    current = 0;
+    loadVideo(0, true);  // this runs inside a user gesture -> autoplay allowed
+  });
+
+  video.addEventListener('ended', () => {
+    if (playlist.length === 0) return;
+    if (focusIndex !== null) {        // repeat the focused video
+      video.currentTime = 0; play();
+    } else {                          // advance the sequential loop
+      loadVideo(nextInLoop(), true);
+    }
+  });
+  video.addEventListener('play', updatePP);
+  video.addEventListener('pause', updatePP);
+
+  playpause.addEventListener('click', () => {
+    if (playlist.length === 0) return;
+    if (video.paused) play(); else video.pause();
+  });
+
+  function stepFrame(dir) {
+    if (playlist.length === 0) return;
+    video.pause();
+    const fps = Math.max(1, parseFloat(fpsInput.value) || 30);
+    let t = video.currentTime + dir / fps;
+    if (t < 0) t = 0;
+    if (isFinite(video.duration)) t = Math.min(t, video.duration - 1e-4);
+    video.currentTime = t;
+  }
+  prevBtn.addEventListener('click', () => stepFrame(-1));
+  nextBtn.addEventListener('click', () => stepFrame(+1));
+
+  restartLoop.addEventListener('click', () => {
+    if (playlist.length === 0) return;
+    focusIndex = null;
+    renderPlaylist();
+    if (video.paused) play();
+  });
+
+  muteBtn.addEventListener('click', () => {
+    video.muted = !video.muted;
+    muteBtn.classList.toggle('on', video.muted);
+    muteBtn.textContent = video.muted ? '🔇 ミュート' : '🔊 音あり';
+  });
+
+  function setSpeed(v) {
+    v = Math.min(5, Math.max(0.1, v));
+    speed.value = v;
+    speedval.textContent = v.toFixed(1) + 'x';
+    video.playbackRate = v;
+  }
+  speed.addEventListener('input', () => setSpeed(parseFloat(speed.value)));
+  document.querySelectorAll('.spd').forEach(b =>
+    b.addEventListener('click', () => setSpeed(parseFloat(b.dataset.v))));
+
+  // keyboard (desktop testing)
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); playpause.click(); }
+    else if (e.code === 'ArrowLeft') stepFrame(-1);
+    else if (e.code === 'ArrowRight') stepFrame(+1);
+  });
+
+  // register service worker for offline use (ignored when opened via file://)
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
