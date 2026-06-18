@@ -5,8 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="LoopPlayer" />
 <meta name="theme-color" content="#000000" />
 <link rel="manifest" href="manifest.webmanifest" />
+<!-- iOS "Add to Home Screen" uses apple-touch-icon (NOT the manifest icons) -->
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="icon" type="image/png" href="icon-192.png" />
 <title>Video Loop Player</title>
 <style>
   :root { --bg:#0b0b0d; --panel:#16161a; --fg:#f2f2f4; --muted:#9a9aa2;
@@ -14,14 +19,14 @@
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
               font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif; }
-  body { display:flex; flex-direction:column; }
+  body { display:flex; flex-direction:column; overflow:hidden; }
   header { display:flex; align-items:center; gap:12px; padding:10px 14px;
            border-bottom:1px solid var(--line); }
   header h1 { font-size:16px; margin:0; font-weight:600; }
-  header .title { color:var(--muted); font-size:13px; margin-left:auto;
-                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%; }
+  header .title { color:var(--muted); font-size:13px;
+                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
   .stage { flex:1; display:flex; align-items:center; justify-content:center;
-           background:#000; min-height:0; }
+           background:#000; min-height:0; position:relative; }
   video { max-width:100%; max-height:100%; background:#000; }
   .controls { padding:10px 14px; border-top:1px solid var(--line);
               display:flex; flex-direction:column; gap:10px; }
@@ -32,6 +37,7 @@
   button:active { background:#23232a; }
   button.primary { background:var(--accent2); border-color:var(--accent); }
   button.toggle.on { background:var(--accent2); border-color:var(--accent); }
+  button.ghost { background:transparent; }
   label.file { background:var(--accent2); border:1px solid var(--accent);
                border-radius:10px; padding:12px 16px; font-size:15px; cursor:pointer;
                display:inline-flex; align-items:center; min-height:48px; }
@@ -50,17 +56,40 @@
   .item.focus { background:var(--accent2); }
   .hint { color:var(--muted); font-size:12px; line-height:1.4; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
+
+  /* collapsed: hide the whole controls panel, keep header (with expand button) */
+  body.collapsed .controls { display:none; }
+
+  /* fullscreen mode: video fills the viewport, header+controls hidden */
+  body.fs header, body.fs .controls { display:none; }
+  body.fs .stage { position:fixed; inset:0; z-index:50; }
+  /* filename label in a corner (shown in fullscreen) */
+  #fsname { position:fixed; right:14px; bottom:12px; z-index:60; display:none;
+            max-width:70vw; padding:6px 10px; border-radius:8px;
+            background:rgba(0,0,0,0.45); color:#e8e8ec; font-size:13px;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+            pointer-events:none; }
+  body.fs #fsname { display:block; }
+  /* subtle exit button (shown in fullscreen) */
+  #fsexit { position:fixed; top:12px; right:12px; z-index:60; display:none;
+            background:rgba(0,0,0,0.45); border-color:rgba(255,255,255,0.25); }
+  body.fs #fsexit { display:flex; }
 </style>
 </head>
 <body>
 <header>
   <h1>Video Loop Player</h1>
   <span class="title" id="title">no video</span>
+  <button id="collapse" class="ghost" title="操作パネルを畳む/出す">▾ 操作</button>
 </header>
 
 <div class="stage">
   <video id="video" playsinline webkit-playsinline muted></video>
 </div>
+
+<!-- fullscreen overlays -->
+<div id="fsname"></div>
+<button id="fsexit" title="全画面を終了">⤓ 全画面終了</button>
 
 <div class="controls">
   <div class="row">
@@ -71,6 +100,7 @@
     <button id="playpause" class="primary">▶ 再生</button>
     <button id="prev" title="前のコマ">⏮ コマ</button>
     <button id="next" title="次のコマ">コマ ⏭</button>
+    <button id="fs">⛶ 全画面</button>
     <button id="restartLoop" class="toggle">連続ループに戻る</button>
     <button id="mute" class="toggle on">🔇 ミュート</button>
   </div>
@@ -94,32 +124,36 @@
 
   <div class="hint" id="hint">
     タップで「その動画だけ繰り返し」。「連続ループに戻る」で 1→2→…→N→1 の順再生に復帰。
+    全画面中は右上「全画面終了」で戻れます。
     ※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。
   </div>
 </div>
 
 <script>
 (() => {
-  const video = document.getElementById('video');
-  const fileInput = document.getElementById('file');
-  const playpause = document.getElementById('playpause');
-  const prevBtn = document.getElementById('prev');
-  const nextBtn = document.getElementById('next');
-  const restartLoop = document.getElementById('restartLoop');
-  const muteBtn = document.getElementById('mute');
-  const speed = document.getElementById('speed');
-  const speedval = document.getElementById('speedval');
-  const fpsInput = document.getElementById('fps');
-  const playlistEl = document.getElementById('playlist');
-  const titleEl = document.getElementById('title');
+  const $ = (id) => document.getElementById(id);
+  const video = $('video');
+  const fileInput = $('file');
+  const playpause = $('playpause');
+  const prevBtn = $('prev');
+  const nextBtn = $('next');
+  const fsBtn = $('fs');
+  const fsExit = $('fsexit');
+  const fsName = $('fsname');
+  const collapseBtn = $('collapse');
+  const restartLoop = $('restartLoop');
+  const muteBtn = $('mute');
+  const speed = $('speed');
+  const speedval = $('speedval');
+  const fpsInput = $('fps');
+  const playlistEl = $('playlist');
+  const titleEl = $('title');
 
   let playlist = [];     // [{name, url}]
   let current = 0;       // index currently loaded
   let focusIndex = null; // when set, repeat just that video
 
-  function revokeAll() {
-    for (const it of playlist) URL.revokeObjectURL(it.url);
-  }
+  function revokeAll() { for (const it of playlist) URL.revokeObjectURL(it.url); }
 
   function renderPlaylist() {
     playlistEl.innerHTML = '';
@@ -141,47 +175,34 @@
   function loadVideo(i, autoplay = true) {
     current = i;
     video.src = playlist[i].url;
-    titleEl.textContent = (i + 1) + '/' + playlist.length + '  ' + playlist[i].name;
+    const label = (i + 1) + '/' + playlist.length + '  ' + playlist[i].name;
+    titleEl.textContent = label;
+    fsName.textContent = label;
     video.load();
     video.playbackRate = parseFloat(speed.value);
     renderPlaylist();
     if (autoplay) play();
   }
 
-  function play() {
-    video.play().then(updatePP).catch(() => updatePP());
-  }
-  function updatePP() {
-    playpause.textContent = video.paused ? '▶ 再生' : '⏸ 停止';
-  }
-
-  function nextInLoop() {
-    return (current + 1) % playlist.length;
-  }
-
-  // tap a playlist item -> focus mode (repeat just that one)
-  function focusOn(i) {
-    focusIndex = i;
-    loadVideo(i, true);
-  }
+  function play() { video.play().then(updatePP).catch(() => updatePP()); }
+  function updatePP() { playpause.textContent = video.paused ? '▶ 再生' : '⏸ 停止'; }
+  function nextInLoop() { return (current + 1) % playlist.length; }
+  function focusOn(i) { focusIndex = i; loadVideo(i, true); }
 
   fileInput.addEventListener('change', (e) => {
-    const files = [...e.target.files].filter(f => f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(f.name));
+    const files = [...e.target.files].filter(f =>
+      f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(f.name));
     if (files.length === 0) return;
     revokeAll();
     playlist = files.map(f => ({ name: f.name, url: URL.createObjectURL(f) }));
-    focusIndex = null;
-    current = 0;
-    loadVideo(0, true);  // this runs inside a user gesture -> autoplay allowed
+    focusIndex = null; current = 0;
+    loadVideo(0, true);  // inside a user gesture -> autoplay allowed
   });
 
   video.addEventListener('ended', () => {
     if (playlist.length === 0) return;
-    if (focusIndex !== null) {        // repeat the focused video
-      video.currentTime = 0; play();
-    } else {                          // advance the sequential loop
-      loadVideo(nextInLoop(), true);
-    }
+    if (focusIndex !== null) { video.currentTime = 0; play(); }
+    else { loadVideo(nextInLoop(), true); }
   });
   video.addEventListener('play', updatePP);
   video.addEventListener('pause', updatePP);
@@ -205,8 +226,7 @@
 
   restartLoop.addEventListener('click', () => {
     if (playlist.length === 0) return;
-    focusIndex = null;
-    renderPlaylist();
+    focusIndex = null; renderPlaylist();
     if (video.paused) play();
   });
 
@@ -218,13 +238,38 @@
 
   function setSpeed(v) {
     v = Math.min(5, Math.max(0.1, v));
-    speed.value = v;
-    speedval.textContent = v.toFixed(1) + 'x';
+    speed.value = v; speedval.textContent = v.toFixed(1) + 'x';
     video.playbackRate = v;
   }
   speed.addEventListener('input', () => setSpeed(parseFloat(speed.value)));
   document.querySelectorAll('.spd').forEach(b =>
     b.addEventListener('click', () => setSpeed(parseFloat(b.dataset.v))));
+
+  // collapse / expand the controls panel
+  collapseBtn.addEventListener('click', () => {
+    const on = document.body.classList.toggle('collapsed');
+    collapseBtn.textContent = on ? '▴ 操作' : '▾ 操作';
+  });
+
+  // fullscreen mode: CSS full-bleed + (where supported) the Fullscreen API
+  function enterFs() {
+    document.body.classList.add('fs');
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) { try { req.call(el); } catch (e) {} }
+  }
+  function exitFs() {
+    document.body.classList.remove('fs');
+    const ex = document.exitFullscreen || document.webkitExitFullscreen;
+    if (ex && (document.fullscreenElement || document.webkitFullscreenElement)) {
+      try { ex.call(document); } catch (e) {}
+    }
+  }
+  fsBtn.addEventListener('click', enterFs);
+  fsExit.addEventListener('click', exitFs);
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) document.body.classList.remove('fs');
+  });
 
   // keyboard (desktop testing)
   document.addEventListener('keydown', (e) => {
@@ -232,6 +277,8 @@
     if (e.code === 'Space') { e.preventDefault(); playpause.click(); }
     else if (e.code === 'ArrowLeft') stepFrame(-1);
     else if (e.code === 'ArrowRight') stepFrame(+1);
+    else if (e.code === 'Escape') exitFs();
+    else if (e.key === 'f') enterFs();
   });
 
   // register service worker for offline use (ignored when opened via file://)
