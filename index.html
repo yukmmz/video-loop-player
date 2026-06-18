@@ -74,6 +74,14 @@
   #fsexit { position:fixed; top:12px; right:12px; z-index:60; display:none;
             background:rgba(0,0,0,0.45); border-color:rgba(255,255,255,0.25); }
   body.fs #fsexit { display:flex; }
+
+  /* transient tap-to-reveal control bar (collapsed or fullscreen) */
+  #tapbar { position:absolute; left:50%; bottom:20px; transform:translateX(-50%);
+            display:flex; gap:10px; z-index:60; opacity:0; pointer-events:none;
+            transition:opacity .18s ease; }
+  #tapbar.show { opacity:1; pointer-events:auto; }
+  #tapbar button { background:rgba(0,0,0,0.55); border-color:rgba(255,255,255,0.25);
+                   font-size:18px; }
 </style>
 </head>
 <body>
@@ -83,8 +91,13 @@
   <button id="collapse" class="ghost" title="操作パネルを畳む/出す">▾ 操作</button>
 </header>
 
-<div class="stage">
+<div class="stage" id="stage">
   <video id="video" playsinline webkit-playsinline muted></video>
+  <div id="tapbar">
+    <button id="tpPrev" title="前のコマ">⏮</button>
+    <button id="tpPlay" class="primary" title="再生/停止">▶</button>
+    <button id="tpNext" title="次のコマ">⏭</button>
+  </div>
 </div>
 
 <!-- fullscreen overlays -->
@@ -141,6 +154,11 @@
   const fsExit = $('fsexit');
   const fsName = $('fsname');
   const collapseBtn = $('collapse');
+  const stage = $('stage');
+  const tapbar = $('tapbar');
+  const tpPrev = $('tpPrev');
+  const tpPlay = $('tpPlay');
+  const tpNext = $('tpNext');
   const restartLoop = $('restartLoop');
   const muteBtn = $('mute');
   const speed = $('speed');
@@ -185,7 +203,10 @@
   }
 
   function play() { video.play().then(updatePP).catch(() => updatePP()); }
-  function updatePP() { playpause.textContent = video.paused ? '▶ 再生' : '⏸ 停止'; }
+  function updatePP() {
+    playpause.textContent = video.paused ? '▶ 再生' : '⏸ 停止';
+    tpPlay.textContent = video.paused ? '▶' : '⏸';
+  }
   function nextInLoop() { return (current + 1) % playlist.length; }
   function focusOn(i) { focusIndex = i; loadVideo(i, true); }
 
@@ -249,7 +270,32 @@
   collapseBtn.addEventListener('click', () => {
     const on = document.body.classList.toggle('collapsed');
     collapseBtn.textContent = on ? '▴ 操作' : '▾ 操作';
+    if (!on) hideBar();
   });
+
+  // transient tap-to-reveal control bar (only while controls are hidden:
+  // i.e. collapsed panel or fullscreen). Tap toggles it; auto-hides after 3s.
+  let tapTimer = null;
+  function barEligible() {
+    return document.body.classList.contains('collapsed')
+        || document.body.classList.contains('fs');
+  }
+  function resetBarTimer() { clearTimeout(tapTimer); tapTimer = setTimeout(hideBar, 3000); }
+  function showBar() { tapbar.classList.add('show'); resetBarTimer(); }
+  function hideBar() { tapbar.classList.remove('show'); clearTimeout(tapTimer); }
+  stage.addEventListener('click', (e) => {
+    if (e.target.closest('#tapbar')) return;   // button taps handled below
+    if (!barEligible()) return;
+    if (tapbar.classList.contains('show')) hideBar(); else showBar();
+  });
+  function tapAction(fn) {
+    return (e) => { e.stopPropagation(); if (playlist.length) fn(); resetBarTimer(); };
+  }
+  tpPlay.addEventListener('click', tapAction(() => {
+    if (video.paused) play(); else video.pause();
+  }));
+  tpPrev.addEventListener('click', tapAction(() => stepFrame(-1)));
+  tpNext.addEventListener('click', tapAction(() => stepFrame(+1)));
 
   // fullscreen mode: CSS full-bleed + (where supported) the Fullscreen API
   function enterFs() {
@@ -260,6 +306,7 @@
   }
   function exitFs() {
     document.body.classList.remove('fs');
+    hideBar();
     const ex = document.exitFullscreen || document.webkitExitFullscreen;
     if (ex && (document.fullscreenElement || document.webkitFullscreenElement)) {
       try { ex.call(document); } catch (e) {}
