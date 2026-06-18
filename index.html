@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="LoopPlayer" />
@@ -16,7 +16,8 @@
 <style>
   :root { --bg:#0b0b0d; --panel:#16161a; --fg:#f2f2f4; --muted:#9a9aa2;
           --accent:#3da9fc; --accent2:#2b6cb0; --line:#2a2a30; }
-  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent;
+      touch-action:manipulation; }  /* manipulation = no double-tap zoom */
   html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
               font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif; }
   body { display:flex; flex-direction:column; overflow:hidden; }
@@ -33,7 +34,8 @@
   .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
            border-radius:10px; padding:12px 16px; font-size:15px; cursor:pointer;
-           min-width:48px; min-height:48px; }
+           min-width:48px; min-height:48px;
+           user-select:none; -webkit-user-select:none; }
   button:active { background:#23232a; }
   button.primary { background:var(--accent2); border-color:var(--accent); }
   button.toggle.on { background:var(--accent2); border-color:var(--accent); }
@@ -76,12 +78,13 @@
   body.fs #fsexit { display:flex; }
 
   /* transient tap-to-reveal control bar (collapsed or fullscreen) */
-  #tapbar { position:absolute; left:50%; bottom:20px; transform:translateX(-50%);
-            display:flex; gap:10px; z-index:60; opacity:0; pointer-events:none;
+  #tapbar { position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+            display:flex; gap:8px; z-index:60; opacity:0; pointer-events:none;
             transition:opacity .18s ease; }
   #tapbar.show { opacity:1; pointer-events:auto; }
   #tapbar button { background:rgba(0,0,0,0.55); border-color:rgba(255,255,255,0.25);
-                   font-size:18px; }
+                   font-size:13px; padding:5px 12px; min-height:30px; min-width:40px;
+                   border-radius:8px; }
 </style>
 </head>
 <body>
@@ -106,19 +109,18 @@
 
 <div class="controls">
   <div class="row">
-    <label class="file">
-      動画を選ぶ（複数可）
-      <input id="file" type="file" accept="video/*" multiple />
-    </label>
     <button id="playpause" class="primary">▶ 再生</button>
     <button id="prev" title="前のコマ">⏮ コマ</button>
     <button id="next" title="次のコマ">コマ ⏭</button>
     <button id="fs">⛶ 全画面</button>
     <button id="restartLoop" class="toggle">連続ループに戻る</button>
     <button id="mute" class="toggle on">🔇 ミュート</button>
+    <button id="speedBtn" class="toggle">⏩ 速度 1.0x</button>
+    <button id="pick">📂 動画選択</button>
+    <input id="file" type="file" accept="video/*" multiple hidden />
   </div>
 
-  <div class="row">
+  <div class="row" id="speedPanel" hidden>
     <div class="speed">
       <span>速度</span>
       <input id="speed" type="range" min="0.1" max="5" step="0.1" value="1" />
@@ -128,11 +130,12 @@
     <button class="spd" data-v="0.5">0.5x</button>
     <button class="spd" data-v="1">1x</button>
     <button class="spd" data-v="2">2x</button>
+    <button class="spd" data-v="5">5x</button>
     <div class="fps">fps <input id="fps" type="number" min="1" max="1000" step="1" value="30" /> <span>（コマ送り用）</span></div>
   </div>
 
   <div class="playlist" id="playlist">
-    <div class="empty">「動画を選ぶ」から1本以上選択してください</div>
+    <div class="empty">右下の「動画選択」から1本以上選択してください</div>
   </div>
 
   <div class="hint" id="hint">
@@ -163,6 +166,9 @@
   const muteBtn = $('mute');
   const speed = $('speed');
   const speedval = $('speedval');
+  const speedBtn = $('speedBtn');
+  const speedPanel = $('speedPanel');
+  const pickBtn = $('pick');
   const fpsInput = $('fps');
   const playlistEl = $('playlist');
   const titleEl = $('title');
@@ -176,7 +182,7 @@
   function renderPlaylist() {
     playlistEl.innerHTML = '';
     if (playlist.length === 0) {
-      playlistEl.innerHTML = '<div class="empty">「動画を選ぶ」から1本以上選択してください</div>';
+      playlistEl.innerHTML = '<div class="empty">右下の「動画選択」から1本以上選択してください</div>';
       return;
     }
     playlist.forEach((it, i) => {
@@ -260,11 +266,20 @@
   function setSpeed(v) {
     v = Math.min(5, Math.max(0.1, v));
     speed.value = v; speedval.textContent = v.toFixed(1) + 'x';
+    speedBtn.textContent = '⏩ 速度 ' + v.toFixed(1) + 'x';
     video.playbackRate = v;
   }
   speed.addEventListener('input', () => setSpeed(parseFloat(speed.value)));
   document.querySelectorAll('.spd').forEach(b =>
     b.addEventListener('click', () => setSpeed(parseFloat(b.dataset.v))));
+
+  // "速度" button toggles the speed panel (slider + presets + fps)
+  speedBtn.addEventListener('click', () => {
+    speedPanel.hidden = !speedPanel.hidden;
+    speedBtn.classList.toggle('on', !speedPanel.hidden);
+  });
+  // "動画選択" button opens the (hidden) file picker
+  pickBtn.addEventListener('click', () => fileInput.click());
 
   // collapse / expand the controls panel
   collapseBtn.addEventListener('click', () => {
