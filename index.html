@@ -159,14 +159,14 @@
   <div class="row" id="swipePanel" hidden>
     <div class="speed">
       <span>スワイプ</span>
-      <input id="swipeRate" type="range" min="0.5" max="10" step="0.5" value="2" />
+      <input id="swipeRate" type="range" min="0.5" max="50" step="0.5" value="2" />
       <span class="speedval" id="swipeRateVal">2.0</span>
     </div>
     <span class="fps">コマ/100px（大きいほど速く進む）</span>
-    <button class="swp" data-v="1">1</button>
     <button class="swp" data-v="2">2</button>
-    <button class="swp" data-v="4">4</button>
-    <button class="swp" data-v="8">8</button>
+    <button class="swp" data-v="10">10</button>
+    <button class="swp" data-v="25">25</button>
+    <button class="swp" data-v="50">50</button>
   </div>
 
   <div class="playlist" id="playlist" hidden></div>
@@ -231,7 +231,7 @@
   const qrUrl = $('qrUrl');
   const verEl = $('ver');
 
-  const APP_VERSION = '1.7.0';
+  const APP_VERSION = '1.7.1';
   // QR (qr.svg) encodes this fixed URL; keep the shown text identical to it
   const APP_URL = 'https://yukmmz.github.io/video-loop-player/';
   verEl.textContent = 'Video Loop Player v' + APP_VERSION;
@@ -357,7 +357,7 @@
   // (e.g. 3 -> ~33px per frame).
   let swipeStepPx = 50;   // default = 2 frames / 100px
   function setSwipeRate(v) {
-    v = Math.min(10, Math.max(0.5, v));
+    v = Math.min(50, Math.max(0.5, v));
     swipeRate.value = v;
     const txt = Number.isInteger(v) ? String(v) : v.toFixed(1);
     swipeRateVal.textContent = txt;
