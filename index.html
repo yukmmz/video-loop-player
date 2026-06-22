@@ -148,6 +148,7 @@
     ・「🎞 動画選択」を押すと開いた動画の一覧が出て、選んだ動画だけを繰り返します。「連続ループに戻る」で通常ループに復帰。<br>
     ・「⛶ 全画面」で画面いっぱい表示（右下にファイル名）。全画面中は右上「全画面終了」で戻れます。<br>
     ・畳み中／全画面中は画面タップで操作バー（再生・コマ送り）が出て、数秒で消えます。<br>
+    ・畳み中／全画面中は画面を左右にスワイプするとコマ送り（右=進む / 左=戻る）。指を離さず逆に動かすと差し引きで反映。<br>
     ・「⏩ 速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>
     ※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。
   </div>
@@ -326,11 +327,41 @@
   function resetBarTimer() { clearTimeout(tapTimer); tapTimer = setTimeout(hideBar, 3000); }
   function showBar() { tapbar.classList.add('show'); resetBarTimer(); }
   function hideBar() { tapbar.classList.remove('show'); clearTimeout(tapTimer); }
+  let swipeConsumed = false;   // set when a swipe occurred, to suppress the tap
   stage.addEventListener('click', (e) => {
     if (e.target.closest('#tapbar')) return;   // button taps handled below
+    if (swipeConsumed) { swipeConsumed = false; return; }  // it was a swipe
     if (!barEligible()) return;
     if (tapbar.classList.contains('show')) hideBar(); else showBar();
   });
+
+  // swipe left/right over the stage to step frames (only while controls are
+  // hidden: collapsed or fullscreen). Each SWIPE_STEP_PX of travel = one frame,
+  // ratcheted: reversing mid-gesture steps back, so the net follows the finger.
+  const SWIPE_STEP_PX = 44;
+  const swipe = { active: false, lastX: 0, startX: 0, moved: false };
+  stage.addEventListener('touchstart', (e) => {
+    swipeConsumed = false;                       // clear any stale flag
+    if (e.target.closest('#tapbar')) return;
+    if (!barEligible() || playlist.length === 0) return;
+    const t = e.touches[0];
+    swipe.active = true; swipe.startX = t.clientX; swipe.lastX = t.clientX;
+    swipe.moved = false;
+  }, { passive: true });
+  stage.addEventListener('touchmove', (e) => {
+    if (!swipe.active) return;
+    const x = e.touches[0].clientX;
+    while (x - swipe.lastX >= SWIPE_STEP_PX) { stepFrame(+1); swipe.lastX += SWIPE_STEP_PX; swipe.moved = true; }
+    while (x - swipe.lastX <= -SWIPE_STEP_PX) { stepFrame(-1); swipe.lastX -= SWIPE_STEP_PX; swipe.moved = true; }
+    if (Math.abs(x - swipe.startX) > 8) swipe.moved = true;
+    if (swipe.moved) e.preventDefault();         // stop page pan/zoom while swiping
+  }, { passive: false });
+  function endSwipe() {
+    if (swipe.moved) swipeConsumed = true;        // suppress the trailing click
+    swipe.active = false;
+  }
+  stage.addEventListener('touchend', endSwipe);
+  stage.addEventListener('touchcancel', endSwipe);
   function tapAction(fn) {
     return (e) => { e.stopPropagation(); if (playlist.length) fn(); resetBarTimer(); };
   }
