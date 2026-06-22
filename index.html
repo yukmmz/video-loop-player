@@ -134,6 +134,7 @@
     <button id="restartLoop" class="toggle">連続ループに戻る</button>
     <button id="mute" class="toggle on">🔇 ミュート</button>
     <button id="speedBtn" class="toggle">⏩ 速度 1.0x</button>
+    <button id="swipeRateBtn" class="toggle">🖐 スワイプ 2/100px</button>
     <button id="chooseBtn" class="toggle" hidden>🎞 動画選択</button>
     <button id="pick">📂 開く</button>
     <button id="qrBtn" class="toggle">📱 QR</button>
@@ -155,6 +156,19 @@
     <div class="fps">fps <input id="fps" type="number" min="1" max="1000" step="1" value="30" /> <span>（コマ送り用）</span></div>
   </div>
 
+  <div class="row" id="swipePanel" hidden>
+    <div class="speed">
+      <span>スワイプ</span>
+      <input id="swipeRate" type="range" min="0.5" max="10" step="0.5" value="2" />
+      <span class="speedval" id="swipeRateVal">2.0</span>
+    </div>
+    <span class="fps">コマ/100px（大きいほど速く進む）</span>
+    <button class="swp" data-v="1">1</button>
+    <button class="swp" data-v="2">2</button>
+    <button class="swp" data-v="4">4</button>
+    <button class="swp" data-v="8">8</button>
+  </div>
+
   <div class="playlist" id="playlist" hidden></div>
 
   <div class="hint" id="hint" hidden>
@@ -163,6 +177,7 @@
     ・「⛶ 全画面」で画面いっぱい表示（右下にファイル名）。全画面中は右上「全画面終了」で戻れます。<br>
     ・畳み中／全画面中は画面タップで操作バー（再生・コマ送り）が出て、数秒で消えます。<br>
     ・畳み中／全画面中は画面を左右にスワイプするとコマ送り（右=進む / 左=戻る）。指を離さず逆に動かすと差し引きで反映。<br>
+    ・「🖐 スワイプ」で送り速度（コマ/100px）を調整できます（大きいほど速い、既定2）。<br>
     ・「⏩ 速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>
     ※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。
   </div>
@@ -202,6 +217,10 @@
   const speedval = $('speedval');
   const speedBtn = $('speedBtn');
   const speedPanel = $('speedPanel');
+  const swipeRateBtn = $('swipeRateBtn');
+  const swipeRatePanel = $('swipePanel');
+  const swipeRate = $('swipeRate');
+  const swipeRateVal = $('swipeRateVal');
   const pickBtn = $('pick');
   const chooseBtn = $('chooseBtn');
   const helpBtn = $('helpBtn');
@@ -212,7 +231,7 @@
   const qrUrl = $('qrUrl');
   const verEl = $('ver');
 
-  const APP_VERSION = 'v9 (2026-06-19)';
+  const APP_VERSION = 'v10 (2026-06-19)';
   // QR (qr.svg) encodes this fixed URL; keep the shown text identical to it
   const APP_URL = 'https://yukmmz.github.io/video-loop-player/';
   verEl.textContent = 'Video Loop Player ' + APP_VERSION;
@@ -332,6 +351,27 @@
     speedPanel.hidden = !speedPanel.hidden;
     speedBtn.classList.toggle('on', !speedPanel.hidden);
   });
+
+  // swipe-step rate: "frames per 100px" of horizontal swipe (bigger = faster).
+  // Stored internally as px-per-frame = 100 / rate, so non-divisors work too
+  // (e.g. 3 -> ~33px per frame).
+  let swipeStepPx = 50;   // default = 2 frames / 100px
+  function setSwipeRate(v) {
+    v = Math.min(10, Math.max(0.5, v));
+    swipeRate.value = v;
+    const txt = Number.isInteger(v) ? String(v) : v.toFixed(1);
+    swipeRateVal.textContent = txt;
+    swipeRateBtn.textContent = '🖐 スワイプ ' + txt + '/100px';
+    swipeStepPx = 100 / v;
+  }
+  swipeRate.addEventListener('input', () => setSwipeRate(parseFloat(swipeRate.value)));
+  document.querySelectorAll('.swp').forEach(b =>
+    b.addEventListener('click', () => setSwipeRate(parseFloat(b.dataset.v))));
+  swipeRateBtn.addEventListener('click', () => {
+    swipeRatePanel.hidden = !swipeRatePanel.hidden;
+    swipeRateBtn.classList.toggle('on', !swipeRatePanel.hidden);
+  });
+  setSwipeRate(2);
   // "開く" button opens the (hidden) OS file picker
   pickBtn.addEventListener('click', () => fileInput.click());
   // "動画選択" button toggles the list of loaded videos to choose what plays
@@ -378,9 +418,9 @@
   });
 
   // swipe left/right over the stage to step frames (only while controls are
-  // hidden: collapsed or fullscreen). Each SWIPE_STEP_PX of travel = one frame,
-  // ratcheted: reversing mid-gesture steps back, so the net follows the finger.
-  const SWIPE_STEP_PX = 44;
+  // hidden: collapsed or fullscreen). Each swipeStepPx of travel = one frame
+  // (set via the "スワイプ" rate control), ratcheted: reversing mid-gesture
+  // steps back, so the net follows the finger.
   const swipe = { active: false, lastX: 0, startX: 0, moved: false };
   stage.addEventListener('touchstart', (e) => {
     swipeConsumed = false;                       // clear any stale flag
@@ -393,8 +433,8 @@
   stage.addEventListener('touchmove', (e) => {
     if (!swipe.active) return;
     const x = e.touches[0].clientX;
-    while (x - swipe.lastX >= SWIPE_STEP_PX) { stepFrame(+1); swipe.lastX += SWIPE_STEP_PX; swipe.moved = true; }
-    while (x - swipe.lastX <= -SWIPE_STEP_PX) { stepFrame(-1); swipe.lastX -= SWIPE_STEP_PX; swipe.moved = true; }
+    while (x - swipe.lastX >= swipeStepPx) { stepFrame(+1); swipe.lastX += swipeStepPx; swipe.moved = true; }
+    while (x - swipe.lastX <= -swipeStepPx) { stepFrame(-1); swipe.lastX -= swipeStepPx; swipe.moved = true; }
     if (Math.abs(x - swipe.startX) > 8) swipe.moved = true;
     if (swipe.moved) e.preventDefault();         // stop page pan/zoom while swiping
   }, { passive: false });

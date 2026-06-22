@@ -1,6 +1,6 @@
 // Minimal offline cache for the app shell (NOT the user's picked videos —
 // those are local blob URLs chosen at runtime and never uploaded/cached).
-const CACHE = 'video-loop-player-v9';
+const CACHE = 'video-loop-player-v10';
 const SHELL = [
   './',
   './index.html',
