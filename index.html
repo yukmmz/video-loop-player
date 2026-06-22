@@ -90,6 +90,19 @@
   #tapbar button { background:rgba(0,0,0,0.6); border-color:rgba(255,255,255,0.3);
                    font-size:17px; padding:12px 22px; min-height:48px; min-width:60px;
                    border-radius:12px; }
+
+  /* small version label (lives in .controls, so it hides when collapsed) */
+  .ver { color:var(--muted); font-size:11px; text-align:right; padding:2px 2px 0; }
+
+  /* QR overlay */
+  #qrOverlay { position:fixed; inset:0; z-index:80; display:flex;
+               align-items:center; justify-content:center;
+               background:rgba(0,0,0,0.72); }
+  .qrcard { background:#fff; color:#111; border-radius:16px; padding:20px;
+            display:flex; flex-direction:column; align-items:center; gap:14px;
+            max-width:86vw; }
+  .qrcard #qrImg { width:min(64vmin,360px); height:auto; image-rendering:pixelated; }
+  .qrcard .qrurl { font-size:13px; color:#333; word-break:break-all; text-align:center; }
 </style>
 </head>
 <body>
@@ -123,6 +136,7 @@
     <button id="speedBtn" class="toggle">⏩ 速度 1.0x</button>
     <button id="chooseBtn" class="toggle" hidden>🎞 動画選択</button>
     <button id="pick">📂 開く</button>
+    <button id="qrBtn" class="toggle">📱 QR</button>
     <button id="helpBtn" class="toggle">❔ ヘルプ</button>
     <input id="file" type="file" accept="video/*" multiple hidden />
   </div>
@@ -151,6 +165,17 @@
     ・畳み中／全画面中は画面を左右にスワイプするとコマ送り（右=進む / 左=戻る）。指を離さず逆に動かすと差し引きで反映。<br>
     ・「⏩ 速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>
     ※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。
+  </div>
+
+  <div class="ver" id="ver"></div>
+</div>
+
+<!-- QR overlay: shows the app URL as a scannable code -->
+<div id="qrOverlay" hidden>
+  <div class="qrcard">
+    <img id="qrImg" src="qr.svg" alt="QR code for the app URL" />
+    <div class="qrurl" id="qrUrl"></div>
+    <button id="qrClose" class="primary">閉じる</button>
   </div>
 </div>
 
@@ -181,6 +206,17 @@
   const chooseBtn = $('chooseBtn');
   const helpBtn = $('helpBtn');
   const hintEl = $('hint');
+  const qrBtn = $('qrBtn');
+  const qrOverlay = $('qrOverlay');
+  const qrClose = $('qrClose');
+  const qrUrl = $('qrUrl');
+  const verEl = $('ver');
+
+  const APP_VERSION = 'v9 (2026-06-19)';
+  // QR (qr.svg) encodes this fixed URL; keep the shown text identical to it
+  const APP_URL = 'https://yukmmz.github.io/video-loop-player/';
+  verEl.textContent = 'Video Loop Player ' + APP_VERSION;
+  qrUrl.textContent = APP_URL;
   const fpsInput = $('fps');
   const playlistEl = $('playlist');
   const titleEl = $('title');
@@ -308,6 +344,12 @@
   helpBtn.addEventListener('click', () => {
     hintEl.hidden = !hintEl.hidden;
     helpBtn.classList.toggle('on', !hintEl.hidden);
+  });
+  // "QR" button shows a scannable QR of the app URL; tap backdrop or 閉じる to hide
+  qrBtn.addEventListener('click', () => { qrOverlay.hidden = false; });
+  qrClose.addEventListener('click', () => { qrOverlay.hidden = true; });
+  qrOverlay.addEventListener('click', (e) => {
+    if (e.target === qrOverlay) qrOverlay.hidden = true;  // click on backdrop
   });
 
   // collapse / expand the controls panel
