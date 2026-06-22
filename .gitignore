@@ -1,3 +1,14 @@
 .DS_Store
 *.log
 node_modules/
+
+# --- Local Claude Code config & dev workspace (never published) ---
+.claude/
+.claudeignore
+CLAUDE.md
+scratch/
+references/
+
+# --- Local scratch notes (temporary, not source) ---
+*.tmp.md
+memo.tmp.md
