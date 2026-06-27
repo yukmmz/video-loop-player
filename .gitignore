@@ -8,6 +8,7 @@ node_modules/
 CLAUDE.md
 scratch/
 references/
+.claude.bk/
 
 # --- Local scratch notes (temporary, not source) ---
 *.tmp.md
