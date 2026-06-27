@@ -1,6 +1,6 @@
 // Minimal offline cache for the app shell (NOT the user's picked videos —
 // those are local blob URLs chosen at runtime and never uploaded/cached).
-const CACHE = 'video-loop-player-v13';
+const CACHE = 'video-loop-player-v14';
 const SHELL = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const SHELL = [
   './icon-192.png',
   './icon-512.png',
   './qr.svg',
+  './src-qr.svg',
 ];
 
 self.addEventListener('install', (e) => {

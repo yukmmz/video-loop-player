@@ -105,8 +105,12 @@
                background:rgba(0,0,0,0.72); }
   .qrcard { background:#fff; color:#111; border-radius:16px; padding:20px;
             display:flex; flex-direction:column; align-items:center; gap:14px;
-            max-width:86vw; }
-  .qrcard #qrImg { width:min(64vmin,360px); height:auto; image-rendering:pixelated; }
+            max-width:92vw; }
+  .qrrow { display:flex; flex-direction:row; align-items:flex-start; gap:24px; }
+  .qrcol { display:flex; flex-direction:column; align-items:center; gap:10px;
+           flex:1 1 0; min-width:0; }
+  .qrcard .qrImg { width:min(38vmin,300px); height:auto; image-rendering:pixelated; }
+  .qrcard .qrlabel { font-size:15px; font-weight:600; color:#111; }
   .qrcard .qrurl { font-size:13px; color:#333; word-break:break-all; text-align:center; }
 </style>
 </head>
@@ -190,11 +194,21 @@
   <div class="ver" id="ver"></div>
 </div>
 
-<!-- QR overlay: shows the app URL as a scannable code -->
+<!-- QR overlay: app URL (left) and source repository URL (right) as scannable codes -->
 <div id="qrOverlay" hidden>
   <div class="qrcard">
-    <img id="qrImg" src="qr.svg" alt="QR code for the app URL" />
-    <div class="qrurl" id="qrUrl"></div>
+    <div class="qrrow">
+      <div class="qrcol">
+        <div class="qrlabel">アプリ</div>
+        <img class="qrImg" src="qr.svg" alt="QR code for the app URL" />
+        <div class="qrurl" id="qrUrl"></div>
+      </div>
+      <div class="qrcol">
+        <div class="qrlabel">ソースコード</div>
+        <img class="qrImg" src="src-qr.svg" alt="QR code for the source repository" />
+        <div class="qrurl" id="qrSrcUrl"></div>
+      </div>
+    </div>
     <button id="qrClose" class="primary">閉じる</button>
   </div>
 </div>
@@ -236,13 +250,16 @@
   const qrOverlay = $('qrOverlay');
   const qrClose = $('qrClose');
   const qrUrl = $('qrUrl');
+  const qrSrcUrl = $('qrSrcUrl');
   const verEl = $('ver');
 
-  const APP_VERSION = '1.7.2';
-  // QR (qr.svg) encodes this fixed URL; keep the shown text identical to it
+  const APP_VERSION = '1.7.3';
+  // QR images encode these fixed URLs; keep the shown text identical to them
   const APP_URL = 'https://yukmmz.github.io/video-loop-player/';
+  const SRC_URL = 'https://github.com/yukmmz/video-loop-player';
   verEl.textContent = 'Video Loop Player v' + APP_VERSION;
   qrUrl.textContent = APP_URL;
+  qrSrcUrl.textContent = SRC_URL;
   const fpsInput = $('fps');
   const playlistEl = $('playlist');
   const titleEl = $('title');
