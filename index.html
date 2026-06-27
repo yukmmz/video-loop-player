@@ -97,9 +97,9 @@
   /* fixed-width numerics so button labels don't shift as the value changes */
   .num { display:inline-block; text-align:right; font-variant-numeric:tabular-nums;
          min-width:2.4em; }
-  /* swipe value: left-aligned so it hugs the label (no leading gap),
-     width just wide enough for the widest value ("99.5") to avoid shift */
-  .num-wide { min-width:2.6em; text-align:left; }
+  /* swipe value: right-aligned (inherits .num) so the fixed-width padding
+     sits to the LEFT of the number; width fits the widest value ("99.5") */
+  .num-wide { min-width:2.6em; }
 
   /* QR overlay */
   #qrOverlay { position:fixed; inset:0; z-index:80; display:flex;
@@ -199,12 +199,12 @@
   <div class="qrcard">
     <div class="qrrow">
       <div class="qrcol">
-        <div class="qrlabel">アプリ</div>
+        <div class="qrlabel">App</div>
         <img class="qrImg" src="qr.svg" alt="QR code for the app URL" />
         <div class="qrurl" id="qrUrl"></div>
       </div>
       <div class="qrcol">
-        <div class="qrlabel">ソースコード</div>
+        <div class="qrlabel">Source</div>
         <img class="qrImg" src="src-qr.svg" alt="QR code for the source repository" />
         <div class="qrurl" id="qrSrcUrl"></div>
       </div>
