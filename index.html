@@ -97,7 +97,9 @@
   /* fixed-width numerics so button labels don't shift as the value changes */
   .num { display:inline-block; text-align:right; font-variant-numeric:tabular-nums;
          min-width:2.4em; }
-  .num-wide { min-width:3.2em; }   /* fits up to "100" / "99.5" */
+  /* swipe value: left-aligned so it hugs the label (no leading gap),
+     width just wide enough for the widest value ("99.5") to avoid shift */
+  .num-wide { min-width:2.6em; text-align:left; }
 
   /* QR overlay */
   #qrOverlay { position:fixed; inset:0; z-index:80; display:flex;
@@ -118,6 +120,8 @@
 <header>
   <h1>Video Loop Player</h1>
   <span class="title" id="title">no video</span>
+  <button id="helpBtn" class="toggle">❔ ヘルプ</button>
+  <button id="qrBtn" class="toggle">QR</button>
   <button id="collapse" class="ghost" title="操作パネルを畳む/出す">▾ 操作</button>
 </header>
 
@@ -137,17 +141,13 @@
 <div class="controls">
   <div class="row">
     <button id="playpause" class="primary">▶ 再生</button>
-    <button id="prev" title="前のコマ">⏮ コマ</button>
-    <button id="next" title="次のコマ">コマ ⏭</button>
     <button id="fs">⛶ 全画面</button>
-    <button id="restartLoop" class="toggle">連続ループに戻る</button>
+    <button id="restartLoop" class="toggle">全動画ループ</button>
     <button id="mute" class="toggle on">🔇 ミュート</button>
-    <button id="speedBtn" class="toggle">⏩ 速度 <span class="num" id="speedNum">1.0</span>x</button>
-    <button id="swipeRateBtn" class="toggle">🖐 スワイプ <span class="num num-wide" id="swipeNum">2</span>/100px</button>
-    <button id="chooseBtn" class="toggle" hidden>🎞 動画選択</button>
-    <button id="pick">📂 開く</button>
-    <button id="qrBtn" class="toggle">📱 QR</button>
-    <button id="helpBtn" class="toggle">❔ ヘルプ</button>
+    <button id="speedBtn" class="toggle">再生速度 <span class="num" id="speedNum">1.0</span>x</button>
+    <button id="swipeRateBtn" class="toggle">スワイプ <span class="num num-wide" id="swipeNum">2</span>/100px</button>
+    <button id="chooseBtn" class="toggle" hidden>動画選択</button>
+    <button id="pick">開く</button>
     <input id="file" type="file" accept="video/*" multiple hidden />
   </div>
 
@@ -181,13 +181,13 @@
   <div class="playlist" id="playlist" hidden></div>
 
   <div class="hint" id="hint" hidden>
-    ・「📂 開く」で動画を1本以上選ぶと、1→2→…→N→1 の順に連続ループ再生します。<br>
-    ・「🎞 動画選択」を押すと開いた動画の一覧が出て、選んだ動画だけを繰り返します。「連続ループに戻る」で通常ループに復帰。<br>
+    ・「開く」で動画を1本以上選ぶと、1→2→…→N→1 の順に連続ループ再生します。<br>
+    ・「動画選択」を押すと開いた動画の一覧が出て、選んだ動画だけを繰り返します。「全動画ループ」で通常ループに復帰。<br>
     ・「⛶ 全画面」で画面いっぱい表示（右下にファイル名）。全画面中は右上「全画面終了」で戻れます。<br>
     ・畳み中／全画面中は画面タップで操作バー（再生・コマ送り）が出て、数秒で消えます。<br>
     ・畳み中／全画面中は画面を左右にスワイプするとコマ送り（右=進む / 左=戻る）。指を離さず逆に動かすと差し引きで反映。<br>
-    ・「🖐 スワイプ」で送り速度（コマ/100px）を調整できます（大きいほど速い、既定2）。<br>
-    ・「⏩ 速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>
+    ・「スワイプ」で送り速度（コマ/100px）を調整できます（大きいほど速い、既定2）。<br>
+    ・「再生速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>
     ※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。
   </div>
 
@@ -219,8 +219,6 @@
   const video = $('video');
   const fileInput = $('file');
   const playpause = $('playpause');
-  const prevBtn = $('prev');
-  const nextBtn = $('next');
   const fsBtn = $('fs');
   const fsExit = $('fsexit');
   const fsName = $('fsname');
@@ -253,7 +251,7 @@
   const qrSrcUrl = $('qrSrcUrl');
   const verEl = $('ver');
 
-  const APP_VERSION = '1.7.3';
+  const APP_VERSION = '1.8.0';
   // QR images encode these fixed URLs; keep the shown text identical to them
   const APP_URL = 'https://yukmmz.github.io/video-loop-player/';
   const SRC_URL = 'https://github.com/yukmmz/video-loop-player';
@@ -345,8 +343,6 @@
     if (isFinite(video.duration)) t = Math.min(t, video.duration - 1e-4);
     video.currentTime = t;
   }
-  prevBtn.addEventListener('click', () => stepFrame(-1));
-  nextBtn.addEventListener('click', () => stepFrame(+1));
 
   restartLoop.addEventListener('click', () => {
     if (playlist.length === 0) return;
