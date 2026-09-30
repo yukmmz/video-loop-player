@@ -15,7 +15,7 @@
 <title>Video Loop Player</title>
 <style>
   :root { --bg:#0b0b0d; --panel:#16161a; --fg:#f2f2f4; --muted:#9a9aa2;
-          --accent:#3da9fc; --accent2:#2b6cb0; --line:#2a2a30; }
+          --accent:#3da9fc; --accent2:#2b6cb0; --line:#2a2a30; --danger:#f87171; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent;
       touch-action:manipulation; }  /* manipulation = no double-tap zoom */
   /* ensure [hidden] wins over .row{display:flex} etc. */
@@ -25,20 +25,41 @@
   body { display:flex; flex-direction:column; overflow:hidden; }
   header { display:flex; align-items:center; gap:12px; padding:10px 14px;
            border-bottom:1px solid var(--line); }
-  header h1 { font-size:16px; margin:0; font-weight:600; }
+  /* App name + version: the same look in every yukmmz.github.io app. */
+  .app-brand { display:flex; align-items:baseline; gap:.45em; white-space:nowrap; }
+  .app-title { font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",Roboto,sans-serif;
+               font-size:16px; font-weight:700; margin:0; letter-spacing:.02em; line-height:1.2; white-space:nowrap; }
+  .app-version { font-size:11px; font-weight:400; opacity:.55; white-space:nowrap; cursor:pointer; }
+  .app-version:hover { text-decoration:underline; }
   header .title { color:var(--muted); font-size:13px;
-                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+  header button { white-space:nowrap; flex:0 0 auto; }
+  .hdr-lbl { margin-left:.35em; }
+  /* phones: Help / Controls shrink to their icons so ⛶ and ⚙ stay on screen */
+  @media (max-width:600px) {
+    header { gap:6px; padding:8px; }
+    header .hdr-lbl { display:none; }
+    header .title { visibility:hidden; }   /* no room; keeps its flex:1 spacing */
+    header button:not(.btn-icon) { min-width:44px; padding:10px; }
+  }
   .stage { flex:1; display:flex; align-items:center; justify-content:center;
            background:#000; min-height:0; position:relative; }
   video { max-width:100%; max-height:100%; background:#000; }
   .controls { padding:10px 14px; border-top:1px solid var(--line);
               display:flex; flex-direction:column; gap:10px; }
   .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+  button, a.btn { background:var(--panel); color:var(--fg); border:1px solid var(--line);
            border-radius:10px; padding:12px 16px; font-size:15px; cursor:pointer;
            min-width:48px; min-height:48px;
            user-select:none; -webkit-user-select:none; }
-  button:active { background:#23232a; }
+  button:active, a.btn:active { background:#23232a; }
+  a.btn { display:inline-flex; align-items:center; text-decoration:none; font-family:inherit; }
+  /* header icon buttons (⛶ / ⚙ / sheet ✕): 36x36 in every yukmmz.github.io app */
+  .btn-icon { width:36px; height:36px; min-width:36px; min-height:36px; padding:0;
+              flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
+              color:var(--muted); font-size:1.1rem; line-height:1; }
+  /* the settings gear is the one control that must read at a glance */
+  #settings-btn { font-size:2.1rem; overflow:visible; }
   button.primary { background:var(--accent2); border-color:var(--accent); }
   button.toggle.on { background:var(--accent2); border-color:var(--accent); }
   button.ghost { background:transparent; }
@@ -92,7 +113,6 @@
                    border-radius:12px; }
 
   /* small version label (lives in .controls, so it hides when collapsed) */
-  .ver { color:var(--muted); font-size:11px; text-align:right; padding:2px 2px 0; }
 
   /* fixed-width numerics so button labels don't shift as the value changes */
   .num { display:inline-block; text-align:right; font-variant-numeric:tabular-nums;
@@ -114,46 +134,92 @@
   .qrcard .qrImg { width:min(38vmin,300px); height:auto; image-rendering:pixelated; }
   .qrcard .qrlabel { font-size:15px; font-weight:600; color:#111; }
   .qrcard .qrurl { font-size:13px; color:#333; word-break:break-all; text-align:center; }
+
+  /* settings sheet: centered modal over a dimmed backdrop (same as every
+     yukmmz.github.io app; dark here because the app is dark-only) */
+  .backdrop { position:fixed; inset:0; z-index:70; background:rgba(0,0,0,0.55); }
+  .sheet { position:fixed; z-index:75; top:50%; left:50%; transform:translate(-50%,-50%);
+           width:min(440px, calc(100vw - 32px)); max-height:calc(100vh - 48px); overflow-y:auto;
+           background:var(--panel); border:1px solid var(--line); border-radius:16px;
+           box-shadow:0 6px 22px rgba(0,0,0,0.5); padding:16px; }
+  .sheet-head { display:flex; align-items:center; justify-content:space-between;
+                gap:8px; margin-bottom:8px; }
+  .sheet-title { font-size:1rem; margin:0; }
+  .sheet-row { display:flex; align-items:center; justify-content:space-between;
+               gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  .sheet-label { font-size:.9rem; }
+  .sheet select { font:inherit; font-size:15px; color:var(--fg); background:var(--bg);
+                  border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+                  min-height:48px; max-width:60%; }
+
+  /* changelog overlay: same card as the QR overlay */
+  #changelogOverlay { position:fixed; inset:0; z-index:80; display:flex;
+                      align-items:center; justify-content:center;
+                      background:rgba(0,0,0,0.72); }
+  .changelog-card { width:min(520px, calc(100vw - 32px)); max-height:calc(100vh - 48px);
+                    align-items:stretch; text-align:left; gap:8px; }
+  .changelog-title { font-size:1rem; margin:0; }
+  .changelog-list { overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; min-height:0; }
+  .changelog-entry + .changelog-entry { border-top:1px solid #ddd; margin-top:8px; padding-top:8px; }
+  .changelog-version { font-size:.9rem; margin:0 0 4px; }
+  .changelog-entry ul { margin:0; padding-left:1.2em; font-size:.85rem; color:#444; }
+  #changelogClose { align-self:center; }
+
+  /* red dot on ⚙ and on the changelog button until the new version's
+     changelog has been opened once */
+  #settings-btn, #changelogBtn { position:relative; }
+  #settings-btn.has-news::after, #changelogBtn.has-news::after {
+    content:''; position:absolute; top:2px; right:2px; width:9px; height:9px;
+    border-radius:50%; background:var(--danger); }
 </style>
 </head>
 <body>
 <header>
-  <h1>Video Loop Player</h1>
+  <div class="app-brand">
+    <h1 class="app-title">Video Loop Player</h1>
+    <span class="app-version" id="ver"></span>
+  </div>
   <span class="title" id="title">no video</span>
-  <button id="helpBtn" class="toggle">❔ ヘルプ</button>
-  <button id="qrBtn" class="toggle">QR</button>
-  <button id="collapse" class="ghost" title="操作パネルを畳む/出す">▾ 操作</button>
+  <button id="helpBtn" class="toggle" data-i18n-title="helpLabel" data-i18n-aria-label="helpLabel"
+          title="ヘルプ" aria-label="ヘルプ">❔<span class="hdr-lbl" data-i18n="helpLabel">ヘルプ</span></button>
+  <button id="collapse" class="ghost" data-i18n-title="collapseTitle" data-i18n-aria-label="collapseTitle"
+          title="操作パネルを畳む/出す" aria-label="操作パネルを畳む/出す"><span id="collapseArrow">▾</span><span class="hdr-lbl" data-i18n="controlsLabel">操作</span></button>
+  <button id="fullscreen-btn" class="btn-icon" type="button"
+          data-i18n-title="c.fullscreen" data-i18n-aria-label="c.fullscreen" title="全画面表示" aria-label="全画面表示">⛶</button>
+  <button id="settings-btn" class="btn-icon" type="button"
+          data-i18n-title="c.settings" data-i18n-aria-label="c.settings"
+          title="設定" aria-label="設定" aria-expanded="false">⚙</button>
 </header>
 
 <div class="stage" id="stage">
   <video id="video" playsinline webkit-playsinline muted></video>
   <div id="tapbar">
-    <button id="tpPrev" title="前のコマ">⏮</button>
-    <button id="tpPlay" class="primary" title="再生/停止">▶</button>
-    <button id="tpNext" title="次のコマ">⏭</button>
+    <button id="tpPrev" data-i18n-title="prevFrame" title="前のコマ">⏮</button>
+    <button id="tpPlay" class="primary" data-i18n-title="playPause" title="再生/停止">▶</button>
+    <button id="tpNext" data-i18n-title="nextFrame" title="次のコマ">⏭</button>
   </div>
 </div>
 
 <!-- fullscreen overlays -->
 <div id="fsname"></div>
-<button id="fsexit" title="全画面を終了">⤓ 全画面終了</button>
+<button id="fsexit" data-i18n="fsExit" data-i18n-title="fsExitTitle" title="全画面を終了">⤓ 全画面終了</button>
 
 <div class="controls">
   <div class="row">
     <button id="playpause" class="primary">▶ 再生</button>
-    <button id="fs">⛶ 全画面</button>
-    <button id="restartLoop" class="toggle">全動画ループ</button>
+    <button id="fs" data-i18n="fsEnter">⛶ 全画面</button>
+    <button id="restartLoop" class="toggle" data-i18n="loopAll">全動画ループ</button>
     <button id="mute" class="toggle on">🔇 ミュート</button>
-    <button id="speedBtn" class="toggle">再生速度 <span class="num" id="speedNum">1.0</span>x</button>
-    <button id="swipeRateBtn" class="toggle">スワイプ <span class="num num-wide" id="swipeNum">2</span>/100px</button>
-    <button id="chooseBtn" class="toggle" hidden>動画選択</button>
-    <button id="pick">開く</button>
+    <button id="speedBtn" class="toggle"><span data-i18n="speedBtn">再生速度</span> <span class="num" id="speedNum">1.0</span>x</button>
+    <button id="swipeRateBtn" class="toggle"><span data-i18n="swipeBtn">スワイプ</span> <span class="num num-wide" id="swipeNum">2</span>/100px</button>
+    <button id="chooseBtn" class="toggle" data-i18n="choose" hidden>動画選択</button>
+    <button id="pick" data-i18n="open">開く</button>
     <input id="file" type="file" accept="video/*" multiple hidden />
   </div>
 
   <div class="row" id="speedPanel" hidden>
     <div class="speed">
-      <span>速度</span>
+      <span data-i18n="speed">速度</span>
       <input id="speed" type="range" min="0.1" max="5" step="0.1" value="1" />
       <span class="speedval" id="speedval">1.0x</span>
     </div>
@@ -162,16 +228,16 @@
     <button class="spd" data-v="1">1x</button>
     <button class="spd" data-v="2">2x</button>
     <button class="spd" data-v="5">5x</button>
-    <div class="fps">fps <input id="fps" type="number" min="1" max="1000" step="1" value="30" /> <span>（コマ送り用）</span></div>
+    <div class="fps">fps <input id="fps" type="number" min="1" max="1000" step="1" value="30" /> <span data-i18n="fpsNote">（コマ送り用）</span></div>
   </div>
 
   <div class="row" id="swipePanel" hidden>
     <div class="speed">
-      <span>スワイプ</span>
+      <span data-i18n="swipe">スワイプ</span>
       <input id="swipeRate" type="range" min="0.5" max="100" step="0.5" value="2" />
       <span class="speedval" id="swipeRateVal">2.0</span>
     </div>
-    <span class="fps">コマ/100px（大きいほど速く進む）</span>
+    <span class="fps" data-i18n="swipeNote">コマ/100px（大きいほど速く進む）</span>
     <button class="swp" data-v="2">2</button>
     <button class="swp" data-v="25">25</button>
     <button class="swp" data-v="50">50</button>
@@ -180,19 +246,46 @@
 
   <div class="playlist" id="playlist" hidden></div>
 
-  <div class="hint" id="hint" hidden>
-    ・「開く」で動画を1本以上選ぶと、1→2→…→N→1 の順に連続ループ再生します。<br>
-    ・「動画選択」を押すと開いた動画の一覧が出て、選んだ動画だけを繰り返します。「全動画ループ」で通常ループに復帰。<br>
-    ・「⛶ 全画面」で画面いっぱい表示（右下にファイル名）。全画面中は右上「全画面終了」で戻れます。<br>
-    ・畳み中／全画面中は画面タップで操作バー（再生・コマ送り）が出て、数秒で消えます。<br>
-    ・畳み中／全画面中は画面を左右にスワイプするとコマ送り（右=進む / 左=戻る）。指を離さず逆に動かすと差し引きで反映。<br>
-    ・「スワイプ」で送り速度（コマ/100px）を調整できます（大きいほど速い、既定2）。<br>
-    ・「再生速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>
-    ※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。
+  <!-- filled from STRINGS.helpHtml -->
+  <div class="hint" id="hint" data-i18n-html="helpHtml" hidden></div>
+</div>
+
+<!-- Settings sheet. The common rows (language, share, changelog, other apps)
+     are the same in every yukmmz.github.io app. This app has no persistent
+     settings, so there are no app rows; it saves nothing, so no "clear data". -->
+<div id="sheet-backdrop" class="backdrop" hidden></div>
+
+<section id="settings-panel" class="sheet" hidden data-i18n-aria-label="c.settings" aria-label="設定">
+  <div class="sheet-head">
+    <h2 class="sheet-title" data-i18n="c.settings">設定</h2>
+    <button id="settings-close" class="btn-icon" type="button"
+            data-i18n-aria-label="c.close" aria-label="閉じる">✕</button>
   </div>
 
-  <div class="ver" id="ver"></div>
-</div>
+  <div class="sheet-row">
+    <span class="sheet-label" data-i18n="c.language">言語</span>
+    <select id="lang-select" data-i18n-aria-label="c.language" aria-label="言語">
+      <option value="ja">日本語</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+
+  <div class="sheet-row">
+    <span class="sheet-label" data-i18n="c.share">共有</span>
+    <button id="qrBtn" type="button" data-i18n="c.showQr">QR コードを表示</button>
+  </div>
+
+  <div class="sheet-row">
+    <span class="sheet-label" data-i18n="c.changelog">更新履歴</span>
+    <button id="changelogBtn" type="button" data-i18n="c.showChangelog">表示</button>
+  </div>
+
+  <div class="sheet-row">
+    <span class="sheet-label" data-i18n="c.otherApps">他のアプリ</span>
+    <a id="otherAppsLink" class="btn" href="https://yukmmz.github.io/" target="_blank" rel="noopener"
+       data-i18n="c.openPortal">アプリ一覧を開く</a>
+  </div>
+</section>
 
 <!-- QR overlay: app URL (left) and source repository URL (right) as scannable codes -->
 <div id="qrOverlay" hidden>
@@ -209,10 +302,20 @@
         <div class="qrurl" id="qrSrcUrl"></div>
       </div>
     </div>
-    <button id="qrClose" class="primary">閉じる</button>
+    <button id="qrClose" class="primary" data-i18n="c.close">閉じる</button>
   </div>
 </div>
 
+<!-- Changelog: newest first, built from CHANGELOG in the script below -->
+<div id="changelogOverlay" hidden>
+  <div class="qrcard changelog-card" role="dialog" data-i18n-aria-label="c.changelog" aria-label="更新履歴">
+    <h2 class="changelog-title" data-i18n="c.changelog">更新履歴</h2>
+    <div id="changelogList" class="changelog-list"></div>
+    <button id="changelogClose" class="primary" type="button" data-i18n="c.close">閉じる</button>
+  </div>
+</div>
+
+<script src="i18n.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -223,6 +326,7 @@
   const fsExit = $('fsexit');
   const fsName = $('fsname');
   const collapseBtn = $('collapse');
+  const collapseArrow = $('collapseArrow');
   const stage = $('stage');
   const tapbar = $('tapbar');
   const tpPrev = $('tpPrev');
@@ -251,11 +355,163 @@
   const qrSrcUrl = $('qrSrcUrl');
   const verEl = $('ver');
 
-  const APP_VERSION = '1.8.0';
+  const fullscreenBtn = $('fullscreen-btn');
+  const settingsBtn = $('settings-btn');
+  const settingsPanel = $('settings-panel');
+  const settingsClose = $('settings-close');
+  const backdrop = $('sheet-backdrop');
+  const langSelect = $('lang-select');
+  const changelogBtn = $('changelogBtn');
+  const changelogOverlay = $('changelogOverlay');
+  const changelogList = $('changelogList');
+  const changelogClose = $('changelogClose');
+
+  const APP_VERSION = '1.9.0';
   // QR images encode these fixed URLs; keep the shown text identical to them
   const APP_URL = 'https://yukmmz.github.io/video-loop-player/';
   const SRC_URL = 'https://github.com/yukmmz/video-loop-player';
-  verEl.textContent = 'Video Loop Player v' + APP_VERSION;
+  const LANG_KEY = 'video-loop-player/lang';
+  const SEEN_VERSION_KEY = 'video-loop-player/seen-version';
+
+  // What changed, newest first, shown from the settings sheet and from the
+  // version next to the app name. Bumping APP_VERSION means adding an entry
+  // here (the first entry must match APP_VERSION). Written for users, in both
+  // languages.
+  const CHANGELOG = [
+    { version: '1.9.0', date: '2026-10-01', items: [
+      { ja: 'アプリ名の横にバージョンを表示しました。押すと更新履歴が開きます',
+        en: 'The version is shown next to the app name; tap it to open this changelog' },
+      { ja: '設定（⚙）を追加しました（言語・共有・更新履歴・他のアプリ）',
+        en: 'Added settings (⚙): language, share, changelog and other apps' },
+      { ja: '英語表示に対応しました。設定で 日本語 / English を切り替えられます',
+        en: 'English UI: switch between Japanese and English in the settings' },
+      { ja: 'ヘッダーに全画面ボタン（⛶）を追加しました',
+        en: 'Added a full-screen button (⛶) to the header' },
+      { ja: 'QR コードの表示を設定（⚙）の中に移しました',
+        en: 'The QR codes moved into the settings (⚙)' },
+      { ja: '新しい版が出たときは ⚙ に赤い点が付きます',
+        en: 'A red dot on ⚙ marks a new version' }
+    ] },
+    { version: '1.8.0', date: '2026-06-27', items: [
+      { ja: '操作ボタンを整理しました（コマ送りボタンを外し、ヘルプと QR をヘッダーへ移動）',
+        en: 'Tidied up the controls (frame-step buttons removed; Help and QR moved to the header)' }
+    ] },
+    { version: '1.7.3', date: '2026-06-27', items: [
+      { ja: 'QR コードを2枚並べて表示するようにしました（左: アプリ、右: ソースコード）',
+        en: 'Two QR codes side by side: the app (left) and its source code (right)' }
+    ] },
+    { version: '1.7.2', date: '2026-06-22', items: [
+      { ja: 'スワイプの送り速度を 100 まで上げられるようにしました（プリセット 2 / 25 / 50 / 100）',
+        en: 'Swipe speed now goes up to 100 (presets 2 / 25 / 50 / 100)' },
+      { ja: 'ボタンの数字の幅を固定し、値が変わってもボタンが動かないようにしました',
+        en: 'Numbers on the buttons have a fixed width, so the buttons no longer shift' }
+    ] },
+    { version: '1.7.1', date: '2026-06-22', items: [
+      { ja: 'スワイプの送り速度を 50 まで上げられるようにしました（プリセット 2 / 10 / 25 / 50）',
+        en: 'Swipe speed now goes up to 50 (presets 2 / 10 / 25 / 50)' }
+    ] },
+    { version: '1.7.0', date: '2026-06-22', items: [
+      { ja: 'スワイプでのコマ送りの速さ（コマ/100px）を調整できるようにしました',
+        en: 'The swipe frame-step speed (frames per 100 px) is adjustable' }
+    ] },
+    { version: '1.6.0', date: '2026-06-22', items: [
+      { ja: 'アプリの QR コードとバージョンを表示できるようにしました',
+        en: 'Added a QR code for the app and a version label' }
+    ] },
+    { version: '1.5.0', date: '2026-06-22', items: [
+      { ja: '操作を隠しているときや全画面のとき、左右スワイプでコマ送りできるようにしました',
+        en: 'Swipe left / right to step frames while the controls are hidden or in full screen' }
+    ] },
+    { version: '1.4.1', date: '2026-06-18', items: [
+      { ja: 'タップで出る操作バーを大きくし、iPad のホームバーに重ならない位置に上げました',
+        en: 'The tap-to-show control bar is bigger and sits above the iPad home bar' }
+    ] },
+    { version: '1.4.0', date: '2026-06-18', items: [
+      { ja: 'ファイル選択を「開く」に改名し、1本だけ繰り返す「動画選択」を追加しました',
+        en: 'The file picker is now "Open", and "Choose video" repeats just one video' }
+    ] },
+    { version: '1.3.1', date: '2026-06-18', items: [
+      { ja: '再生速度パネルを最初は隠し、説明をヘルプボタンにまとめました',
+        en: 'The speed panel starts hidden, and the instructions moved behind a Help button' }
+    ] },
+    { version: '1.3.0', date: '2026-06-18', items: [
+      { ja: 'ダブルタップで拡大しないようにし、操作バーを小さくして、速度と選択をボタンにしました',
+        en: 'No more double-tap zoom; a slimmer control bar; speed and picker became buttons' }
+    ] },
+    { version: '1.2.0', date: '2026-06-18', items: [
+      { ja: '操作を隠しているときや全画面のとき、画面をタップすると操作バーが出るようにしました',
+        en: 'Tap the screen to show a control bar while the controls are hidden or in full screen' }
+    ] },
+    { version: '1.1.0', date: '2026-06-18', items: [
+      { ja: '全画面表示・操作パネルの折りたたみ・ホーム画面用アイコンを追加しました',
+        en: 'Added full screen, collapsible controls and a home-screen icon' }
+    ] },
+    { version: '1.0.0', date: '2026-06-18', items: [
+      { ja: '初版: 選んだ動画を順に連続ループ再生。コマ送り・再生速度・オフライン対応',
+        en: 'First release: loop the chosen videos in order, with frame step, speed control and offline use' }
+    ] }
+  ];
+
+  // UI strings. `c.*` keys are the common ones every yukmmz.github.io app uses
+  // with the same wording; the rest belong to this app.
+  const STRINGS = {
+    ja: {
+      'c.settings': '設定', 'c.close': '閉じる', 'c.language': '言語', 'c.share': '共有',
+      'c.showQr': 'QR コードを表示', 'c.changelog': '更新履歴', 'c.showChangelog': '表示',
+      'c.otherApps': '他のアプリ', 'c.openPortal': 'アプリ一覧を開く', 'c.data': 'データ',
+      'c.clearData': '保存データを消す', 'c.fullscreen': '全画面表示',
+      noVideo: 'no video', helpLabel: 'ヘルプ', collapseTitle: '操作パネルを畳む/出す',
+      controlsLabel: '操作',
+      prevFrame: '前のコマ', nextFrame: '次のコマ', playPause: '再生/停止',
+      fsExit: '⤓ 全画面終了', fsExitTitle: '全画面を終了', fsEnter: '⛶ 全画面',
+      play: '▶ 再生', pause: '⏸ 停止', loopAll: '全動画ループ',
+      muted: '🔇 ミュート', unmuted: '🔊 音あり',
+      speedBtn: '再生速度', swipeBtn: 'スワイプ', choose: '動画選択', open: '開く',
+      speed: '速度', fpsNote: '（コマ送り用）', swipe: 'スワイプ',
+      swipeNote: 'コマ/100px（大きいほど速く進む）',
+      helpHtml:
+        '・「開く」で動画を1本以上選ぶと、1→2→…→N→1 の順に連続ループ再生します。<br>' +
+        '・「動画選択」を押すと開いた動画の一覧が出て、選んだ動画だけを繰り返します。「全動画ループ」で通常ループに復帰。<br>' +
+        '・「⛶ 全画面」（またはヘッダーの ⛶）で画面いっぱい表示（右下にファイル名）。全画面中は右上「全画面終了」で戻れます。<br>' +
+        '・畳み中／全画面中は画面タップで操作バー（再生・コマ送り）が出て、数秒で消えます。<br>' +
+        '・畳み中／全画面中は画面を左右にスワイプするとコマ送り（右=進む / 左=戻る）。指を離さず逆に動かすと差し引きで反映。<br>' +
+        '・「スワイプ」で送り速度（コマ/100px）を調整できます（大きいほど速い、既定2）。<br>' +
+        '・「再生速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>' +
+        '・言語の切替・QR コード・更新履歴は ⚙（設定）から。<br>' +
+        '※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。'
+    },
+    en: {
+      'c.settings': 'Settings', 'c.close': 'Close', 'c.language': 'Language', 'c.share': 'Share',
+      'c.showQr': 'Show QR codes', 'c.changelog': 'Changelog', 'c.showChangelog': 'Show',
+      'c.otherApps': 'Other apps', 'c.openPortal': 'Open app list', 'c.data': 'Data',
+      'c.clearData': 'Clear saved data', 'c.fullscreen': 'Full screen',
+      noVideo: 'no video', helpLabel: 'Help', collapseTitle: 'Hide / show the controls',
+      controlsLabel: 'Controls',
+      prevFrame: 'Previous frame', nextFrame: 'Next frame', playPause: 'Play / pause',
+      fsExit: '⤓ Exit full screen', fsExitTitle: 'Exit full screen', fsEnter: '⛶ Full screen',
+      play: '▶ Play', pause: '⏸ Pause', loopAll: 'Loop all',
+      muted: '🔇 Muted', unmuted: '🔊 Sound on',
+      speedBtn: 'Speed', swipeBtn: 'Swipe', choose: 'Choose video', open: 'Open',
+      speed: 'Speed', fpsNote: '(for frame step)', swipe: 'Swipe',
+      swipeNote: 'frames / 100 px (larger = faster)',
+      helpHtml:
+        '• "Open" one or more videos and they play in a continuous loop: 1 → 2 → … → N → 1.<br>' +
+        '• "Choose video" lists the opened videos; the one you pick repeats on its own. "Loop all" returns to the normal loop.<br>' +
+        '• "⛶ Full screen" (or ⛶ in the header) fills the screen, with the file name at the bottom right. "Exit full screen" at the top right brings you back.<br>' +
+        '• While the controls are hidden or in full screen, tap the screen for a control bar (play, frame step); it fades after a few seconds.<br>' +
+        '• While the controls are hidden or in full screen, swipe left / right to step frames (right = forward, left = back). Moving back without lifting your finger cancels out.<br>' +
+        '• "Swipe" sets the step speed in frames per 100 px (larger = faster, default 2).<br>' +
+        '• "Speed" opens the playback-speed panel. Frame step uses the fps value.<br>' +
+        '• Language, QR codes and the changelog are in ⚙ (Settings).<br>' +
+        'Note: Safari on iPad may ignore extreme playback speeds (above 2× or very slow); use frame step instead.'
+    }
+  };
+  const t = (key, params) => I18N.t(key, params);
+
+  // Before anything is labelled: sets <html lang> and fills data-i18n markup.
+  I18N.init(LANG_KEY, STRINGS);
+
+  verEl.textContent = 'v' + APP_VERSION;
   qrUrl.textContent = APP_URL;
   qrSrcUrl.textContent = SRC_URL;
   const fpsInput = $('fps');
@@ -296,7 +552,7 @@
 
   function play() { video.play().then(updatePP).catch(() => updatePP()); }
   function updatePP() {
-    playpause.textContent = video.paused ? '▶ 再生' : '⏸ 停止';
+    playpause.textContent = video.paused ? t('play') : t('pause');
     tpPlay.textContent = video.paused ? '▶' : '⏸';
   }
   function nextInLoop() { return (current + 1) % playlist.length; }
@@ -353,8 +609,9 @@
   muteBtn.addEventListener('click', () => {
     video.muted = !video.muted;
     muteBtn.classList.toggle('on', video.muted);
-    muteBtn.textContent = video.muted ? '🔇 ミュート' : '🔊 音あり';
+    updateMute();
   });
+  function updateMute() { muteBtn.textContent = video.muted ? t('muted') : t('unmuted'); }
 
   function setSpeed(v) {
     v = Math.min(5, Math.max(0.1, v));
@@ -405,17 +662,96 @@
     hintEl.hidden = !hintEl.hidden;
     helpBtn.classList.toggle('on', !hintEl.hidden);
   });
-  // "QR" button shows a scannable QR of the app URL; tap backdrop or 閉じる to hide
-  qrBtn.addEventListener('click', () => { qrOverlay.hidden = false; });
+  // --- settings sheet (⚙): centered modal; closes via ✕, backdrop, or Esc
+  function setSettingsOpen(open) {
+    settingsPanel.hidden = !open;
+    backdrop.hidden = !open;
+    settingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  settingsBtn.addEventListener('click', () => setSettingsOpen(settingsPanel.hidden));
+  settingsClose.addEventListener('click', () => setSettingsOpen(false));
+  backdrop.addEventListener('click', () => setSettingsOpen(false));
+  langSelect.value = I18N.lang();
+  langSelect.addEventListener('change', () => I18N.set(langSelect.value));
+
+  // "Show QR codes" (in settings) shows the app and source QR codes;
+  // tap outside the card, Close, or Esc to hide
+  qrBtn.addEventListener('click', () => { setSettingsOpen(false); qrOverlay.hidden = false; });
   qrClose.addEventListener('click', () => { qrOverlay.hidden = true; });
   qrOverlay.addEventListener('click', (e) => {
     if (e.target === qrOverlay) qrOverlay.hidden = true;  // click on backdrop
   });
 
+  // --- changelog, and the "new version" dot on ⚙
+  function readSeenVersion() {
+    try { return localStorage.getItem(SEEN_VERSION_KEY); } catch (e) { return null; }
+  }
+  function writeSeenVersion() {
+    try { localStorage.setItem(SEEN_VERSION_KEY, APP_VERSION); } catch (e) { /* ignore */ }
+  }
+  // First visit ever: nothing is "new", so record the version quietly. This
+  // app kept no storage before 1.9.0, so every visitor without a seen-version
+  // counts as a first visitor (no dot).
+  function initSeenVersion() {
+    if (readSeenVersion() === null) writeSeenVersion();
+  }
+  function syncNewsMark() {
+    const hasNews = readSeenVersion() !== APP_VERSION;
+    settingsBtn.classList.toggle('has-news', hasNews);
+    changelogBtn.classList.toggle('has-news', hasNews);
+  }
+  function buildChangelog() {
+    changelogList.textContent = '';
+    for (const entry of CHANGELOG) {
+      const section = document.createElement('section');
+      section.className = 'changelog-entry';
+      const head = document.createElement('h3');
+      head.className = 'changelog-version';
+      head.textContent = 'v' + entry.version + ' (' + entry.date + ')';
+      section.appendChild(head);
+      const list = document.createElement('ul');
+      for (const item of entry.items) {
+        const li = document.createElement('li');
+        li.textContent = item[I18N.lang()] || item.ja;
+        list.appendChild(li);
+      }
+      section.appendChild(list);
+      changelogList.appendChild(section);
+    }
+  }
+  function openChangelog() {
+    setSettingsOpen(false);
+    changelogOverlay.hidden = false;
+    changelogList.scrollTop = 0;
+    writeSeenVersion();
+    syncNewsMark();
+  }
+  initSeenVersion();
+  buildChangelog();
+  syncNewsMark();
+  verEl.addEventListener('click', openChangelog);
+  changelogBtn.addEventListener('click', openChangelog);
+  changelogClose.addEventListener('click', () => { changelogOverlay.hidden = true; });
+  changelogOverlay.addEventListener('click', (e) => {
+    if (e.target === changelogOverlay) changelogOverlay.hidden = true;
+  });
+
+  function anyModalOpen() {
+    return !settingsPanel.hidden || !qrOverlay.hidden || !changelogOverlay.hidden;
+  }
+  function closeModals() {
+    setSettingsOpen(false);
+    qrOverlay.hidden = true;
+    changelogOverlay.hidden = true;
+  }
+
   // collapse / expand the controls panel
+  function updateCollapse() {
+    collapseArrow.textContent = document.body.classList.contains('collapsed') ? '▴' : '▾';
+  }
   collapseBtn.addEventListener('click', () => {
     const on = document.body.classList.toggle('collapsed');
-    collapseBtn.textContent = on ? '▴ 操作' : '▾ 操作';
+    updateCollapse();
     if (!on) hideBar();
   });
 
@@ -488,21 +824,43 @@
       try { ex.call(document); } catch (e) {}
     }
   }
+  // The header ⛶ (common to every yukmmz.github.io app) enters the same
+  // fullscreen mode as the "⛶ 全画面" control. It stays visible even where the
+  // Fullscreen API is missing (iPhone): the CSS full-bleed mode works anyway.
   fsBtn.addEventListener('click', enterFs);
+  fullscreenBtn.addEventListener('click', enterFs);
   fsExit.addEventListener('click', exitFs);
   document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement) document.body.classList.remove('fs');
   });
 
-  // keyboard (desktop testing)
+  // keyboard (desktop testing). Esc closes an open settings / QR / changelog
+  // window first; otherwise it leaves fullscreen mode.
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return;
+    if (anyModalOpen()) {
+      if (e.code === 'Escape') closeModals();   // also from the focused <select>
+      return;   // no player shortcuts behind a modal
+    }
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT') return;
     if (e.code === 'Space') { e.preventDefault(); playpause.click(); }
     else if (e.code === 'ArrowLeft') stepFrame(-1);
     else if (e.code === 'ArrowRight') stepFrame(+1);
     else if (e.code === 'Escape') exitFs();
     else if (e.key === 'f') enterFs();
   });
+
+  // Text built in JS rather than marked up with data-i18n: rebuild on switch.
+  function applyLanguage() {
+    langSelect.value = I18N.lang();
+    updatePP();
+    updateMute();
+    updateCollapse();
+    if (playlist.length === 0) titleEl.textContent = t('noVideo');
+    buildChangelog();
+  }
+  I18N.onChange(applyLanguage);
+  applyLanguage();
 
   // register service worker for offline use (ignored when opened via file://)
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
