@@ -1,112 +1,144 @@
 # Video Loop Player
 
-ローカルの動画を **1〜N本** 選び、`動画1 → 動画2 → … → 動画N → 動画1 → …` と
-**連続ループ再生**するシングルページWebアプリ。学会ポスター前の机での
-iPad展示（キオスク）を主用途に作成。依存ゼロ・ビルド不要の1ファイル構成。
+*English / [日本語](README_ja.md)*
 
-**現在のバージョン: v1.9.0**
+A single-page web app that plays **1 to N** local videos in a **continuous loop**:
+`video 1 → video 2 → … → video N → video 1 → …`. Built mainly for iPad kiosk displays
+at a conference poster table. No dependencies, no build step, a single-file app.
 
-## バージョン管理
+**→ [Open App](https://yukmmz.github.io/video-loop-player/)**
 
-セマンティックバージョニング `MAJOR.MINOR.PATCH`。初回パブリッシュを 1.0.0 とする。
-機能追加で MINOR、不具合修正で PATCH を上げる（互換を壊す大改修で MAJOR）。
-表示は `index.html` の `APP_VERSION`。更新時は `sw.js` の `CACHE`（`...-vN`、
-キャッシュ更新用の内部連番で semver とは別）も併せて上げ、`index.html` の `CHANGELOG`
-（画面の更新履歴。先頭を `APP_VERSION` と一致させ、日英両方で書く）にも1件足すこと。
+**Current version: v1.10.0**
 
-| version | 内容 |
-|---|---|
-| 1.0.0 | 初版（連続ループ・コマ送り・速度・PWA、公開） |
-| 1.1.0 | 全画面・操作パネル畳み・iOS apple-touch-icon |
-| 1.2.0 | 畳み/全画面中のタップで操作バー表示 |
-| 1.3.0 | ダブルタップズーム無効化・タップバー縮小・速度/選択をボタン化 |
-| 1.3.1 | 速度パネル既定非表示・説明をヘルプボタンへ |
-| 1.4.0 | ファイル選択を「開く」に改名・「動画選択」チョイサ追加 |
-| 1.4.1 | 操作バーを拡大しホームインジケータ上に移動 |
-| 1.5.0 | 左右スワイプでコマ送り |
-| 1.6.0 | QRコード表示・バージョン表示 |
-| 1.7.0 | スワイプ送り速度の調整（コマ/100px） |
-| 1.7.1 | スワイプ速度の上限を50に拡大・プリセット変更（2/10/25/50） |
-| 1.7.2 | スワイプ速度の上限を100に拡大（2/25/50/100）・ボタンの数値を固定幅化 |
-| 1.7.3 | QR表示を2枚並列化（左=アプリ・右=ソースコード） |
-| 1.8.0 | 操作バー整理（コマ送りボタン削除・ヘルプ/QRをヘッダーへ移動） |
-| 1.9.0 | アプリ名の横にバージョンを表示（押すと更新履歴）・ヘッダー右端に ⛶（全画面）と ⚙（設定）を追加・設定に言語／共有（QR）／更新履歴／他のアプリ・英語UI（日本語／English 切替）・QRボタンをヘッダーから設定へ移動・新しい版は ⚙ に赤い点 |
+## Features
 
-## 機能
+- **Multiple videos**: pick one or more videos from Files / Photos, etc. (any number).
+- **Continuous loop**: plays them in the chosen order and returns to the first after the last, forever.
+- **Pause / play**: the "Play / Stop" button (stop = pause).
+- **Frame stepping**: previous/next frame (`currentTime ± 1/fps`). fps is set in the UI (default 30).
+- **Playback speed**: 0.1–5.0× slider plus presets (0.25/0.5/1/2×).
+- **Temporary jump**: tap a video in the playlist → "repeat this video only".
+  The **"Back to continuous loop"** button returns to the normal N-video loop.
+- **Full screen**: "⛶ Full screen" or the ⛶ at the right of the header fills the screen with the video
+  (both use the same full-screen mode). The file name is shown small at the bottom right; the shrink
+  button at the top right (corners pointing in) or Esc brings you back
+  (the Fullscreen API is also used on PC/Android).
+- **Collapsible controls**: "▾ Controls" at the right of the header hides/shows the control buttons.
+- **Tap for the control bar**: while collapsed / in full screen, tapping the screen brings up
+  play/stop and frame-step buttons, which disappear after about 3 seconds (or on another tap).
+- **Settings (⚙)**: the ⚙ at the right end of the header opens the settings window (a centered panel):
+  language (Japanese / English), share (show QR codes), changelog, other apps (app list).
+  Close with ✕, a tap outside, or Esc. A red dot appears on ⚙ the first time you open a new version.
+- **How to use (?)**: the ? in the header (just left of ⚙) or the `?` key opens the how-to window
+  (basic operation, keyboard shortcuts, notes for iPad). Close with Close, a tap outside, or Esc.
+- **QR codes**: Settings → "Show QR codes" shows QR codes for the app URL and the source side by side
+  (so visitors can open it on their phones). Close with Close, a tap outside, or Esc.
+- **Version display**: the version is shown small next to the app name at the top left. Tap it to open the changelog.
+- **Language**: the UI is in Japanese and English. The first visit follows the browser language (ja* → Japanese);
+  switching in settings is remembered in this browser (see [Saved data](#saved-data)).
+- **PWA**: add to the home screen to launch offline (only the app itself is cached;
+  the chosen videos are local blobs and are never uploaded or sent anywhere).
 
-- **複数動画の選択**: Files / 写真 などから動画を1本以上選ぶ（数は可変）。
-- **連続ループ再生**: 選んだ順に再生し、最後まで行ったら先頭へ戻って無限ループ。
-- **一時停止 / 再生**: 「再生 / 停止」ボタン（停止＝一時停止）。
-- **コマ送り**: 前/次のコマへ（`currentTime ± 1/fps`）。fps はUIで指定（既定30）。
-- **再生速度**: 0.1〜5.0倍のスライダ＋プリセット（0.25/0.5/1/2倍）。
-- **一時ジャンプ**: プレイリストの動画をタップ → 「その動画だけ繰り返し」。
-  **「連続ループに戻る」** ボタンで通常のN本ループに復帰。
-- **全画面表示**: 「⛶ 全画面」またはヘッダー右の ⛶ で動画を画面いっぱいに（どちらも同じ
-  全画面モード）。右下にファイル名を小さく表示、右上「全画面終了」または Esc で戻る
-  （PC/Androidでは Fullscreen API も併用）。
-- **操作パネルの畳み**: ヘッダ右の「▾ 操作」で操作ボタン群を隠す/再表示。
-- **タップで操作バー**: 畳み中／全画面中に画面をタップすると、再生/停止・コマ送りの
-  ボタンが浮かび、約3秒で（または再タップで）消える。
-- **設定（⚙）**: ヘッダー右端の ⚙ で設定画面（中央の小窓）を開く。中身は 言語（日本語 /
-  English）・共有（QR コードを表示）・更新履歴・他のアプリ（アプリ一覧）。✕・外側タップ・Esc で閉じる。
-  新しい版を初めて開いたときは ⚙ に赤い点が付く。
-- **QR表示**: 設定 →「QR コードを表示」でアプリURLとソースのQRコードを並べて表示
-  （来場者がスマホで開ける）。閉じる・外側タップ・Esc で閉じる。
-- **バージョン表示**: 画面左上のアプリ名の横に小さくバージョンを表示。押すと更新履歴が開く。
-- **言語**: UI は日本語と英語。初回はブラウザの言語に従い（ja* なら日本語）、設定で切り替えると
-  このブラウザに記憶する（`video-loop-player/lang`。既読バージョン `video-loop-player/seen-version` のみ
-  併せて保存。動画や操作状態は保存しない）。
-- **PWA**: ホーム画面に追加してオフライン起動可（アプリ本体のみキャッシュ。
-  選んだ動画はローカルのblobで、アップロードも外部送信もしない）。
+## Usage
 
-## 使い方（ローカル / 開発）
+Setting up an iPad for a conference display:
 
-ブラウザで `index.html` を開くだけでも動く。ただし Service Worker（オフライン）と
-一部APIは `http(s)` 配信が必要なので、ローカルでは簡易サーバ経由を推奨:
+1. Publish this repository with **GitHub Pages** (`https://<user>.github.io/video-loop-player/`) or similar.
+2. Open it in iPad Safari, then Share → **"Add to Home Screen"** (it can then launch offline).
+3. Launch the app → **"Choose videos"** to pick the videos to show → the continuous loop starts automatically.
+4. Settings for unattended display:
+   - **Settings → Display & Brightness → Auto-Lock → Never**.
+   - Turn on **Guided Access** and lock the iPad to the app (prevents mistakes and leaving the app).
+
+> You can re-pick videos on the spot, so swapping content is just "Choose videos" again.
+> During a session (as long as the app stays open) it can loop all day.
+
+> **If the icon shows an "L" or does not update**: iOS "Add to Home Screen" uses
+> `apple-touch-icon` (not the manifest icons). The tag is in place, but iOS caches icons
+> aggressively, so **delete the existing home-screen icon, reload the page in Safari,
+> and "Add to Home Screen" again**.
+
+## Running locally
+
+Opening `index.html` in a browser works, but the Service Worker (offline) and some APIs
+need `http(s)`, so a simple local server is recommended:
 
 ```bash
 cd video-loop-player
 python3 -m http.server 8000
-# ブラウザで http://localhost:8000/
+# open http://localhost:8000/ in a browser
 ```
 
-## iPad（学会展示）でのセットアップ
+Automated checks (Node only, no packages):
 
-1. このリポジトリを **GitHub Pages**（`https://<user>.github.io/video-loop-player/`）等で公開。
-2. iPad Safari で開き、共有 → **「ホーム画面に追加」**（オフライン起動できるようになる）。
-3. アプリを起動 → **「動画を選ぶ」** で展示したい動画を選択 → 自動で連続ループ開始。
-4. 放置展示のための設定:
-   - **設定 → 画面表示と明るさ → 自動ロック → なし**。
-   - **アクセスガイド（Guided Access）** を有効化し、アプリに固定（誤操作・離脱防止）。
+```bash
+node tests/test_logic.js   # script compiles, CHANGELOG/STRINGS/sw.js/README consistency
+```
 
-> 動画はその場で選び直せるので、内容の差し替えは「動画を選ぶ」からやり直すだけ。
-> セッション中（アプリを閉じない限り）はそのまま一日中ループ可能。
+## Saved data
 
-> **アイコンが「L」になる/更新されない場合**: iOSの「ホーム画面に追加」は
-> `apple-touch-icon` を使う（manifestのアイコンではない）。タグを追加済みだが、
-> iOSはアイコンを強くキャッシュするため、**既存のホーム画面アイコンを一度削除し、
-> Safariでページを再読み込みしてから「ホーム画面に追加」をやり直す**こと。
+The app keeps only two small values in the browser (`localStorage`): the chosen language
+(`video-loop-player/lang`) and the last version whose changelog you have seen
+(`video-loop-player/seen-version`). The chosen videos and the control state are never saved,
+and the videos are never uploaded. When added to the home screen, the Service Worker also caches
+the app's own files (not your videos) so it can start offline.
 
-## 既知の制約（iOS Safari）
+There is no "clear saved data" button; to remove these, clear this site's data in the browser settings.
 
-- **再生速度**: iOS Safari は `playbackRate` の極端な値（特に2倍超・極端な低速）を
-  無視/クランプすることがある。スロー確認は **コマ送り** で代替可能。実機で
-  効く範囲を事前に確認すること。
-- **コマ送り精度**: H.264はフレーム間圧縮のため、シーク先が最寄りのデコード可能
-  フレームに丸められる場合がある。fps を正しく設定すると実用上は十分。
-- **自動再生**: 最初の1操作（動画選択）が必要。以降の切替は自動。無音動画なら
-  ミュート自動再生が効くので途切れにくい。
+## Versioning
 
-## ファイル構成
+Semantic versioning `MAJOR.MINOR.PATCH`; the first public release is 1.0.0.
+Bump MINOR for new features, PATCH for bug fixes (MAJOR for breaking overhauls).
+The displayed version is `APP_VERSION` in `index.html`. When updating, also bump `CACHE`
+in `sw.js` (`...-vN`, an internal counter for cache refresh, separate from semver), and add
+one entry to `CHANGELOG` in `index.html` (the in-app changelog; its first entry must match
+`APP_VERSION`, written in both Japanese and English).
+
+| version | Changes |
+|---|---|
+| 1.0.0 | First release (continuous loop, frame stepping, speed, PWA; published) |
+| 1.1.0 | Full screen, collapsible control panel, iOS apple-touch-icon |
+| 1.2.0 | Tap to show the control bar while collapsed / in full screen |
+| 1.3.0 | Disabled double-tap zoom, smaller tap bar, speed/selection as buttons |
+| 1.3.1 | Speed panel hidden by default, instructions moved to the help button |
+| 1.4.0 | File picker renamed to "Open", added a "select video" chooser |
+| 1.4.1 | Larger control bar, moved above the home indicator |
+| 1.5.0 | Swipe left/right to step frames |
+| 1.6.0 | QR code display, version display |
+| 1.7.0 | Adjustable swipe stepping speed (frames / 100 px) |
+| 1.7.1 | Swipe speed limit raised to 50, new presets (2/10/25/50) |
+| 1.7.2 | Swipe speed limit raised to 100 (2/25/50/100), fixed-width numbers on buttons |
+| 1.7.3 | Two QR codes side by side (left = app, right = source code) |
+| 1.8.0 | Tidied the control bar (removed frame-step buttons, moved help/QR to the header) |
+| 1.9.0 | Version shown next to the app name (tap for the changelog), ⛶ (full screen) and ⚙ (settings) at the right end of the header, settings with language / share (QR) / changelog / other apps, English UI (Japanese / English switch), QR button moved from the header into settings, red dot on ⚙ for a new version |
+| 1.10.0 | "How to use" moved to a window opened by the ? button in the header (or the ? key) (removed the old "❔ Help" and the inline instruction panel, added a keyboard shortcut list), header full-screen button turned into an icon (a "shrink" shape while in full screen), the exit button at the top right in full screen also uses the shrink icon |
+
+## Known limitations (iOS Safari)
+
+- **Playback speed**: iOS Safari may ignore or clamp extreme `playbackRate` values
+  (especially above 2× or very slow). Use **frame stepping** for slow-motion checks. Check
+  the range that works on the actual device beforehand.
+- **Frame-step accuracy**: H.264 uses inter-frame compression, so a seek may be rounded to the
+  nearest decodable frame. With the correct fps this is good enough in practice.
+- **Autoplay**: the first action (choosing videos) is required. Switching afterwards is automatic.
+  Silent videos benefit from muted autoplay, so playback rarely stalls.
+
+## Files
 
 ```
 video-loop-player/
-├── index.html            # アプリ本体（HTML/CSS/JS 全部入り）
-├── i18n.js               # 日英切替（yukmmz.github.io の全アプリで同一内容。個別に編集しない）
-├── manifest.webmanifest  # PWA マニフェスト
-├── sw.js                 # オフライン用 Service Worker（アプリ本体のみキャッシュ）
-└── README.md
+├── index.html            # the app (HTML/CSS/JS all in one)
+├── i18n.js               # Japanese/English switch (identical in every yukmmz.github.io app; don't edit per app)
+├── manifest.webmanifest  # PWA manifest
+├── sw.js                 # offline Service Worker (caches the app only)
+├── icon-180.png / icon-192.png / icon-512.png  # icons (home screen, tab)
+├── qr.svg / src-qr.svg   # QR codes for the app / source
+├── tests/test_logic.js   # node checks (no packages)
+├── LICENSE
+├── README.md             # English (this file)
+└── README_ja.md          # Japanese
 ```
 
-> アイコン（`icon-192.png` / `icon-512.png`）は未同梱。ホーム画面アイコンを
-> きれいにしたい場合のみ追加すればよい（無くても動作する）。
+## License
+
+MIT — see [LICENSE](LICENSE).

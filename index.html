@@ -11,6 +11,14 @@
 <!-- iOS "Add to Home Screen" uses apple-touch-icon (NOT the manifest icons) -->
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png" />
 <link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="description" content="Loop local videos one after another, with frame-stepping and speed control. Made for iPad kiosk displays; nothing is uploaded." />
+<!-- Link previews (LINE / Slack / X). og:image must be an absolute URL. -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Video Loop Player" />
+<meta property="og:description" content="Loop local videos one after another, with frame-stepping and speed control. Made for iPad kiosk displays; nothing is uploaded." />
+<meta property="og:url" content="https://yukmmz.github.io/video-loop-player/" />
+<meta property="og:image" content="https://yukmmz.github.io/video-loop-player/icon-192.png" />
+<meta name="twitter:card" content="summary" />
 <link rel="icon" type="image/png" href="icon-192.png" />
 <title>Video Loop Player</title>
 <style>
@@ -35,7 +43,7 @@
                   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
   header button { white-space:nowrap; flex:0 0 auto; }
   .hdr-lbl { margin-left:.35em; }
-  /* phones: Help / Controls shrink to their icons so ⛶ and ⚙ stay on screen */
+  /* phones: Controls shrinks to its icon so ?, ⛶ and ⚙ stay on screen */
   @media (max-width:600px) {
     header { gap:6px; padding:8px; }
     header .hdr-lbl { display:none; }
@@ -79,7 +87,6 @@
           overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
   .item.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
   .item.focus { background:var(--accent2); }
-  .hint { color:var(--muted); font-size:12px; line-height:1.4; }
   .empty { color:var(--muted); text-align:center; padding:24px; }
 
   /* collapsed: hide the whole controls panel, keep header (with expand button) */
@@ -97,7 +104,7 @@
   body.fs #fsname { display:block; }
   /* subtle exit button (shown in fullscreen) */
   #fsexit { position:fixed; top:12px; right:12px; z-index:60; display:none;
-            background:rgba(0,0,0,0.45); border-color:rgba(255,255,255,0.25); }
+            background:rgba(0,0,0,0.45); border-color:rgba(255,255,255,0.25); color:#e8e8ec; }
   body.fs #fsexit { display:flex; }
 
   /* transient tap-to-reveal control bar (collapsed or fullscreen) */
@@ -165,6 +172,28 @@
   .changelog-entry ul { margin:0; padding-left:1.2em; font-size:.85rem; color:#444; }
   #changelogClose { align-self:center; }
 
+  /* "How to use" window (header ? / ? key): same card as the changelog */
+  #helpOverlay { position:fixed; inset:0; z-index:80; display:flex;
+                 align-items:center; justify-content:center;
+                 background:rgba(0,0,0,0.72); }
+  .help-body { font-size:.9rem; line-height:1.6; color:#222; }
+  .help-body p { margin:6px 0; }
+  .help-body h3 { font-size:.9rem; margin:12px 0 4px; }
+  .help-body ul { margin:0; padding-left:1.2em; }
+  .help-body ul.keys { list-style:none; padding-left:0; }
+  .help-body ul.keys li { margin:3px 0; }
+  .help-body .note { font-size:.8rem; color:#555; }
+  .help-body kbd { display:inline-block; min-width:1.6em; padding:0 .35em; text-align:center;
+                   border:1px solid #bbb; border-bottom-width:2px; border-radius:5px;
+                   background:#f4f4f6; font-family:inherit; font-size:.8rem; line-height:1.5; }
+  #helpClose { align-self:center; }
+  #help-btn { font-size:1.35rem; font-weight:700; }
+  .fs-icon { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2.2;
+             stroke-linecap:round; stroke-linejoin:round; }
+  #fullscreen-btn .fs-exit,
+  #fullscreen-btn.is-fullscreen .fs-enter { display:none; }
+  #fullscreen-btn.is-fullscreen .fs-exit { display:block; }
+
   /* red dot on ⚙ and on the changelog button until the new version's
      changelog has been opened once */
   #settings-btn, #changelogBtn { position:relative; }
@@ -180,12 +209,15 @@
     <span class="app-version" id="ver"></span>
   </div>
   <span class="title" id="title">no video</span>
-  <button id="helpBtn" class="toggle" data-i18n-title="helpLabel" data-i18n-aria-label="helpLabel"
-          title="ヘルプ" aria-label="ヘルプ">❔<span class="hdr-lbl" data-i18n="helpLabel">ヘルプ</span></button>
   <button id="collapse" class="ghost" data-i18n-title="collapseTitle" data-i18n-aria-label="collapseTitle"
           title="操作パネルを畳む/出す" aria-label="操作パネルを畳む/出す"><span id="collapseArrow">▾</span><span class="hdr-lbl" data-i18n="controlsLabel">操作</span></button>
-  <button id="fullscreen-btn" class="btn-icon" type="button"
-          data-i18n-title="c.fullscreen" data-i18n-aria-label="c.fullscreen" title="全画面表示" aria-label="全画面表示">⛶</button>
+  <!-- Label and icon follow the state in syncFullscreenBtn(): corners out = expand, corners in = shrink -->
+  <button id="fullscreen-btn" class="btn-icon" type="button" title="全画面表示" aria-label="全画面表示">
+    <svg class="fs-icon fs-enter" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+    <svg class="fs-icon fs-exit" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5"/></svg>
+  </button>
+  <button id="help-btn" class="btn btn-icon" type="button"
+          data-i18n-title="c.help" data-i18n-aria-label="c.help" title="使い方" aria-label="使い方">?</button>
   <button id="settings-btn" class="btn-icon" type="button"
           data-i18n-title="c.settings" data-i18n-aria-label="c.settings"
           title="設定" aria-label="設定" aria-expanded="false">⚙</button>
@@ -194,15 +226,18 @@
 <div class="stage" id="stage">
   <video id="video" playsinline webkit-playsinline muted></video>
   <div id="tapbar">
-    <button id="tpPrev" data-i18n-title="prevFrame" title="前のコマ">⏮</button>
-    <button id="tpPlay" class="primary" data-i18n-title="playPause" title="再生/停止">▶</button>
-    <button id="tpNext" data-i18n-title="nextFrame" title="次のコマ">⏭</button>
+    <button id="tpPrev" data-i18n-title="prevFrame" data-i18n-aria-label="prevFrame" title="前のコマ" aria-label="前のコマ">⏮</button>
+    <button id="tpPlay" class="primary" title="再生" aria-label="再生">▶</button>
+    <button id="tpNext" data-i18n-title="nextFrame" data-i18n-aria-label="nextFrame" title="次のコマ" aria-label="次のコマ">⏭</button>
   </div>
 </div>
 
 <!-- fullscreen overlays -->
 <div id="fsname"></div>
-<button id="fsexit" data-i18n="fsExit" data-i18n-title="fsExitTitle" title="全画面を終了">⤓ 全画面終了</button>
+<button id="fsexit" class="btn-icon" type="button" data-i18n-title="c.exitFullscreen" data-i18n-aria-label="c.exitFullscreen"
+        title="全画面を終了" aria-label="全画面を終了">
+  <svg class="fs-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5"/></svg>
+</button>
 
 <div class="controls">
   <div class="row">
@@ -245,9 +280,6 @@
   </div>
 
   <div class="playlist" id="playlist" hidden></div>
-
-  <!-- filled from STRINGS.helpHtml -->
-  <div class="hint" id="hint" data-i18n-html="helpHtml" hidden></div>
 </div>
 
 <!-- Settings sheet. The common rows (language, share, changelog, other apps)
@@ -259,7 +291,7 @@
   <div class="sheet-head">
     <h2 class="sheet-title" data-i18n="c.settings">設定</h2>
     <button id="settings-close" class="btn-icon" type="button"
-            data-i18n-aria-label="c.close" aria-label="閉じる">✕</button>
+            data-i18n-aria-label="c.close" data-i18n-title="c.close" aria-label="閉じる" title="閉じる">✕</button>
   </div>
 
   <div class="sheet-row">
@@ -315,6 +347,15 @@
   </div>
 </div>
 
+<!-- "How to use": opened by the header ? button or the ? key; filled from STRINGS.help -->
+<div id="helpOverlay" hidden>
+  <div class="qrcard changelog-card help-card" role="dialog" data-i18n-aria-label="c.help" aria-label="使い方">
+    <h2 class="changelog-title" data-i18n="c.help">使い方</h2>
+    <div class="changelog-list help-body" data-i18n-html="help"></div>
+    <button id="helpClose" class="primary" type="button" data-i18n="c.close">閉じる</button>
+  </div>
+</div>
+
 <script src="i18n.js"></script>
 <script>
 (() => {
@@ -346,8 +387,9 @@
   const swipeRateVal = $('swipeRateVal');
   const pickBtn = $('pick');
   const chooseBtn = $('chooseBtn');
-  const helpBtn = $('helpBtn');
-  const hintEl = $('hint');
+  const helpBtn = $('help-btn');
+  const helpOverlay = $('helpOverlay');
+  const helpClose = $('helpClose');
   const qrBtn = $('qrBtn');
   const qrOverlay = $('qrOverlay');
   const qrClose = $('qrClose');
@@ -366,7 +408,7 @@
   const changelogList = $('changelogList');
   const changelogClose = $('changelogClose');
 
-  const APP_VERSION = '1.9.0';
+  const APP_VERSION = '1.10.0';
   // QR images encode these fixed URLs; keep the shown text identical to them
   const APP_URL = 'https://yukmmz.github.io/video-loop-player/';
   const SRC_URL = 'https://github.com/yukmmz/video-loop-player';
@@ -378,6 +420,14 @@
   // here (the first entry must match APP_VERSION). Written for users, in both
   // languages.
   const CHANGELOG = [
+    { version: '1.10.0', date: '2026-10-01', items: [
+      { ja: '使い方はヘッダーの ? ボタンで開くようになりました（? キーでも開きます）',
+        en: 'How to use now opens from the ? button in the header (or the ? key)' },
+      { ja: '全画面ボタンの絵を、全画面中は「縮小」の形に変わるアイコンにしました',
+        en: 'The full-screen button is now an icon that changes to "shrink" while in full screen' },
+      { ja: '全画面中に右上に出る「全画面終了」ボタンも、同じ「縮小」のアイコンにしました',
+        en: 'The "Exit full screen" button shown at the top right in full screen now uses the same "shrink" icon' }
+    ] },
     { version: '1.9.0', date: '2026-10-01', items: [
       { ja: 'アプリ名の横にバージョンを表示しました。押すと更新履歴が開きます',
         en: 'The version is shown next to the app name; tap it to open this changelog' },
@@ -459,51 +509,77 @@
       'c.settings': '設定', 'c.close': '閉じる', 'c.language': '言語', 'c.share': '共有',
       'c.showQr': 'QR コードを表示', 'c.changelog': '更新履歴', 'c.showChangelog': '表示',
       'c.otherApps': '他のアプリ', 'c.openPortal': 'アプリ一覧を開く', 'c.data': 'データ',
-      'c.clearData': '保存データを消す', 'c.fullscreen': '全画面表示',
-      noVideo: 'no video', helpLabel: 'ヘルプ', collapseTitle: '操作パネルを畳む/出す',
+      'c.clearData': '保存データを消す', 'c.fullscreen': '全画面表示', 'c.exitFullscreen': '全画面を終了', 'c.help': '使い方',
+      noVideo: 'no video', collapseTitle: '操作パネルを畳む/出す',
       controlsLabel: '操作',
       prevFrame: '前のコマ', nextFrame: '次のコマ', playPause: '再生/停止',
-      fsExit: '⤓ 全画面終了', fsExitTitle: '全画面を終了', fsEnter: '⛶ 全画面',
+      playTitle: '再生', pauseTitle: '停止', swpPreset: 'スワイプ {v} コマ/100px',
+      fsEnter: '⛶ 全画面',
       play: '▶ 再生', pause: '⏸ 停止', loopAll: '全動画ループ',
       muted: '🔇 ミュート', unmuted: '🔊 音あり',
       speedBtn: '再生速度', swipeBtn: 'スワイプ', choose: '動画選択', open: '開く',
       speed: '速度', fpsNote: '（コマ送り用）', swipe: 'スワイプ',
       swipeNote: 'コマ/100px（大きいほど速く進む）',
-      helpHtml:
-        '・「開く」で動画を1本以上選ぶと、1→2→…→N→1 の順に連続ループ再生します。<br>' +
-        '・「動画選択」を押すと開いた動画の一覧が出て、選んだ動画だけを繰り返します。「全動画ループ」で通常ループに復帰。<br>' +
-        '・「⛶ 全画面」（またはヘッダーの ⛶）で画面いっぱい表示（右下にファイル名）。全画面中は右上「全画面終了」で戻れます。<br>' +
-        '・畳み中／全画面中は画面タップで操作バー（再生・コマ送り）が出て、数秒で消えます。<br>' +
-        '・畳み中／全画面中は画面を左右にスワイプするとコマ送り（右=進む / 左=戻る）。指を離さず逆に動かすと差し引きで反映。<br>' +
-        '・「スワイプ」で送り速度（コマ/100px）を調整できます（大きいほど速い、既定2）。<br>' +
-        '・「再生速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。<br>' +
-        '・言語の切替・QR コード・更新履歴は ⚙（設定）から。<br>' +
-        '※ iPadのSafariは再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。'
+      help:
+        '<ul>' +
+        '<li>「開く」で動画を1本以上選ぶと、1→2→…→N→1 の順に連続ループ再生します。</li>' +
+        '<li>「動画選択」を押すと開いた動画の一覧が出て、選んだ動画だけを繰り返します。「全動画ループ」で通常ループに復帰。</li>' +
+        '<li>「⛶ 全画面」（またはヘッダーの ⛶）で画面いっぱい表示（右下にファイル名）。全画面中は右上の縮小ボタン（四隅が内向きのマーク）か Esc で戻れます。</li>' +
+        '<li>ヘッダーの「▾ 操作」で操作パネルを畳む／出す。</li>' +
+        '<li>畳み中／全画面中は画面タップで操作バー（再生・コマ送り）が出て、数秒で消えます。</li>' +
+        '<li>畳み中／全画面中は画面を左右にスワイプするとコマ送り（右=進む / 左=戻る）。指を離さず逆に動かすと差し引きで反映。</li>' +
+        '<li>「スワイプ」で送り速度（コマ/100px）を調整できます（大きいほど速い、既定2）。</li>' +
+        '<li>「再生速度」で再生速度パネルを開閉。コマ送りは fps の値を使います。</li>' +
+        '<li>言語の切替・QR コード・更新履歴は ⚙（設定）から。</li>' +
+        '</ul>' +
+        '<h3>キーボードショートカット</h3>' +
+        '<ul class="keys">' +
+        '<li><kbd>Space</kbd> 再生／停止</li>' +
+        '<li><kbd>←</kbd> <kbd>→</kbd> 前／次のコマ</li>' +
+        '<li><kbd>F</kbd> 全画面</li>' +
+        '<li><kbd>Esc</kbd> 窓を閉じる（窓が無ければ全画面を終了）</li>' +
+        '<li><kbd>?</kbd> 使い方</li>' +
+        '</ul>' +
+        '<h3>iPad / iPhone</h3>' +
+        '<p class="note">iPad の Safari は再生速度の極端な値（特に2倍超・極端な低速）を無視することがあります（コマ送りで代替可）。</p>'
     },
     en: {
       'c.settings': 'Settings', 'c.close': 'Close', 'c.language': 'Language', 'c.share': 'Share',
       'c.showQr': 'Show QR codes', 'c.changelog': 'Changelog', 'c.showChangelog': 'Show',
       'c.otherApps': 'Other apps', 'c.openPortal': 'Open app list', 'c.data': 'Data',
-      'c.clearData': 'Clear saved data', 'c.fullscreen': 'Full screen',
-      noVideo: 'no video', helpLabel: 'Help', collapseTitle: 'Hide / show the controls',
+      'c.clearData': 'Clear saved data', 'c.fullscreen': 'Full screen', 'c.exitFullscreen': 'Exit full screen', 'c.help': 'How to use',
+      noVideo: 'no video', collapseTitle: 'Hide / show the controls',
       controlsLabel: 'Controls',
       prevFrame: 'Previous frame', nextFrame: 'Next frame', playPause: 'Play / pause',
-      fsExit: '⤓ Exit full screen', fsExitTitle: 'Exit full screen', fsEnter: '⛶ Full screen',
+      playTitle: 'Play', pauseTitle: 'Pause', swpPreset: 'Swipe: {v} frames / 100 px',
+      fsEnter: '⛶ Full screen',
       play: '▶ Play', pause: '⏸ Pause', loopAll: 'Loop all',
       muted: '🔇 Muted', unmuted: '🔊 Sound on',
       speedBtn: 'Speed', swipeBtn: 'Swipe', choose: 'Choose video', open: 'Open',
       speed: 'Speed', fpsNote: '(for frame step)', swipe: 'Swipe',
       swipeNote: 'frames / 100 px (larger = faster)',
-      helpHtml:
-        '• "Open" one or more videos and they play in a continuous loop: 1 → 2 → … → N → 1.<br>' +
-        '• "Choose video" lists the opened videos; the one you pick repeats on its own. "Loop all" returns to the normal loop.<br>' +
-        '• "⛶ Full screen" (or ⛶ in the header) fills the screen, with the file name at the bottom right. "Exit full screen" at the top right brings you back.<br>' +
-        '• While the controls are hidden or in full screen, tap the screen for a control bar (play, frame step); it fades after a few seconds.<br>' +
-        '• While the controls are hidden or in full screen, swipe left / right to step frames (right = forward, left = back). Moving back without lifting your finger cancels out.<br>' +
-        '• "Swipe" sets the step speed in frames per 100 px (larger = faster, default 2).<br>' +
-        '• "Speed" opens the playback-speed panel. Frame step uses the fps value.<br>' +
-        '• Language, QR codes and the changelog are in ⚙ (Settings).<br>' +
-        'Note: Safari on iPad may ignore extreme playback speeds (above 2× or very slow); use frame step instead.'
+      help:
+        '<ul>' +
+        '<li>"Open" one or more videos and they play in a continuous loop: 1 → 2 → … → N → 1.</li>' +
+        '<li>"Choose video" lists the opened videos; the one you pick repeats on its own. "Loop all" returns to the normal loop.</li>' +
+        '<li>"⛶ Full screen" (or ⛶ in the header) fills the screen, with the file name at the bottom right. The shrink button (corners pointing in) at the top right, or Esc, brings you back.</li>' +
+        '<li>"▾ Controls" in the header hides / shows the control panel.</li>' +
+        '<li>While the controls are hidden or in full screen, tap the screen for a control bar (play, frame step); it fades after a few seconds.</li>' +
+        '<li>While the controls are hidden or in full screen, swipe left / right to step frames (right = forward, left = back). Moving back without lifting your finger cancels out.</li>' +
+        '<li>"Swipe" sets the step speed in frames per 100 px (larger = faster, default 2).</li>' +
+        '<li>"Speed" opens the playback-speed panel. Frame step uses the fps value.</li>' +
+        '<li>Language, QR codes and the changelog are in ⚙ (Settings).</li>' +
+        '</ul>' +
+        '<h3>Keyboard shortcuts</h3>' +
+        '<ul class="keys">' +
+        '<li><kbd>Space</kbd> play / pause</li>' +
+        '<li><kbd>←</kbd> <kbd>→</kbd> previous / next frame</li>' +
+        '<li><kbd>F</kbd> full screen</li>' +
+        '<li><kbd>Esc</kbd> close a window (otherwise exit full screen)</li>' +
+        '<li><kbd>?</kbd> how to use</li>' +
+        '</ul>' +
+        '<h3>iPad / iPhone</h3>' +
+        '<p class="note">Safari on iPad may ignore extreme playback speeds (above 2× or very slow); use frame step instead.</p>'
     }
   };
   const t = (key, params) => I18N.t(key, params);
@@ -554,6 +630,10 @@
   function updatePP() {
     playpause.textContent = video.paused ? t('play') : t('pause');
     tpPlay.textContent = video.paused ? '▶' : '⏸';
+    // icon-only button: keep its spoken/hover label in step with the icon
+    const ppLabel = t(video.paused ? 'playTitle' : 'pauseTitle');
+    tpPlay.title = ppLabel;
+    tpPlay.setAttribute('aria-label', ppLabel);
   }
   function nextInLoop() { return (current + 1) % playlist.length; }
   function focusOn(i) {
@@ -657,11 +737,6 @@
     playlistEl.hidden = !playlistEl.hidden;
     chooseBtn.classList.toggle('on', !playlistEl.hidden);
   });
-  // "ヘルプ" button toggles the explanation panel
-  helpBtn.addEventListener('click', () => {
-    hintEl.hidden = !hintEl.hidden;
-    helpBtn.classList.toggle('on', !hintEl.hidden);
-  });
   // --- settings sheet (⚙): centered modal; closes via ✕, backdrop, or Esc
   function setSettingsOpen(open) {
     settingsPanel.hidden = !open;
@@ -737,13 +812,27 @@
   });
 
   function anyModalOpen() {
-    return !settingsPanel.hidden || !qrOverlay.hidden || !changelogOverlay.hidden;
+    return !settingsPanel.hidden || !qrOverlay.hidden || !changelogOverlay.hidden
+        || !helpOverlay.hidden;
   }
   function closeModals() {
     setSettingsOpen(false);
     qrOverlay.hidden = true;
     changelogOverlay.hidden = true;
+    helpOverlay.hidden = true;
   }
+
+  // "How to use" window: header ? button or the ? key; Close, outside tap, Esc
+  function openHelp() {
+    closeModals();
+    helpOverlay.hidden = false;
+    helpOverlay.querySelector('.help-body').scrollTop = 0;
+  }
+  helpBtn.addEventListener('click', openHelp);
+  helpClose.addEventListener('click', () => { helpOverlay.hidden = true; });
+  helpOverlay.addEventListener('click', (e) => {
+    if (e.target === helpOverlay) helpOverlay.hidden = true;
+  });
 
   // collapse / expand the controls panel
   function updateCollapse() {
@@ -815,6 +904,7 @@
     const el = document.documentElement;
     const req = el.requestFullscreen || el.webkitRequestFullscreen;
     if (req) { try { req.call(el); } catch (e) {} }
+    syncFullscreenBtn();
   }
   function exitFs() {
     document.body.classList.remove('fs');
@@ -823,26 +913,48 @@
     if (ex && (document.fullscreenElement || document.webkitFullscreenElement)) {
       try { ex.call(document); } catch (e) {}
     }
+    syncFullscreenBtn();
+  }
+  // Swap the header button's icon and label so it shows what a press will do
+  // (expand when windowed, shrink in fullscreen mode). The mode is the CSS
+  // full-bleed class, which also covers iPhone where the Fullscreen API is missing.
+  function syncFullscreenBtn() {
+    const on = document.body.classList.contains('fs');
+    const label = t(on ? 'c.exitFullscreen' : 'c.fullscreen');
+    fullscreenBtn.classList.toggle('is-fullscreen', on);
+    fullscreenBtn.title = label;
+    fullscreenBtn.setAttribute('aria-label', label);
   }
   // The header ⛶ (common to every yukmmz.github.io app) enters the same
   // fullscreen mode as the "⛶ 全画面" control. It stays visible even where the
   // Fullscreen API is missing (iPhone): the CSS full-bleed mode works anyway.
   fsBtn.addEventListener('click', enterFs);
-  fullscreenBtn.addEventListener('click', enterFs);
-  fsExit.addEventListener('click', exitFs);
-  document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement) document.body.classList.remove('fs');
+  fullscreenBtn.addEventListener('click', () => {
+    if (document.body.classList.contains('fs')) exitFs(); else enterFs();
   });
+  fsExit.addEventListener('click', exitFs);
+  function onFullscreenChange() {
+    if (!(document.fullscreenElement || document.webkitFullscreenElement)) {
+      document.body.classList.remove('fs');
+    }
+    syncFullscreenBtn();
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
-  // keyboard (desktop testing). Esc closes an open settings / QR / changelog
-  // window first; otherwise it leaves fullscreen mode.
+  // keyboard (desktop testing). Esc closes an open settings / QR / changelog /
+  // help window first; otherwise it leaves fullscreen mode. ? opens the help.
   document.addEventListener('keydown', (e) => {
+    const tag = e.target.tagName;
+    const typing = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+    if (e.key === '?' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault(); openHelp(); return;
+    }
     if (anyModalOpen()) {
       if (e.code === 'Escape') closeModals();   // also from the focused <select>
       return;   // no player shortcuts behind a modal
     }
-    const tag = e.target.tagName;
-    if (tag === 'INPUT' || tag === 'SELECT') return;
+    if (typing) return;
     if (e.code === 'Space') { e.preventDefault(); playpause.click(); }
     else if (e.code === 'ArrowLeft') stepFrame(-1);
     else if (e.code === 'ArrowRight') stepFrame(+1);
@@ -857,6 +969,13 @@
     updateMute();
     updateCollapse();
     if (playlist.length === 0) titleEl.textContent = t('noVideo');
+    syncFullscreenBtn();
+    // swipe presets show only a number, so label them for hover / screen readers
+    document.querySelectorAll('.swp').forEach(b => {
+      const label = t('swpPreset', { v: b.dataset.v });
+      b.title = label;
+      b.setAttribute('aria-label', label);
+    });
     buildChangelog();
   }
   I18N.onChange(applyLanguage);
