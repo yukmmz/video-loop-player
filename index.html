@@ -223,13 +223,19 @@
   #settings-btn.has-news::after, #changelogBtn.has-news::after {
     content:''; position:absolute; top:2px; right:2px; width:9px; height:9px;
     border-radius:50%; background:var(--danger); }
+  /* quick tooltip for mouse hover (shared UI §10): inverted colours, above
+     every overlay (80) and the full-screen controls (60) */
+  .quick-tip { position:fixed; z-index:100; max-width:260px; padding:4px 8px;
+               border-radius:6px; background:var(--fg); color:var(--bg);
+               font-size:.8rem; line-height:1.4; white-space:nowrap;
+               pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
 <header>
   <div class="app-brand">
     <h1 class="app-title">Video Loop Player</h1>
-    <span class="app-version" id="ver"></span>
+    <span class="app-version" id="ver" data-i18n-title="c.changelog" title="更新履歴"></span>
   </div>
   <span class="title" id="title">no video</span>
   <button id="collapse" class="ghost" data-i18n-title="collapseTitle" data-i18n-aria-label="collapseTitle"
@@ -464,7 +470,7 @@
   const feedbackSend = $('feedbackSend');
   const feedbackClose = $('feedbackClose');
 
-  const APP_VERSION = '1.11.0';
+  const APP_VERSION = '1.12.0';
   const APP_ID = 'video-loop-player';
   // Shared feedback endpoint (Google Apps Script web app, one for every yukmmz.github.io app).
   // Public on purpose: it can only append a row to a sheet and post to a Discord channel.
@@ -480,6 +486,10 @@
   // here (the first entry must match APP_VERSION). Written for users, in both
   // languages.
   const CHANGELOG = [
+    { version: '1.12.0', date: '2026-10-05', items: [
+      { ja: 'ボタンにマウスを乗せたときの説明が、すぐ（0.5秒で）出るようにしました',
+        en: 'Button hints now appear quickly (after 0.5 s) when you hover with the mouse' }
+    ] },
     { version: '1.11.0', date: '2026-10-04', items: [
       { ja: 'ヘッダーに「FB」ボタンを追加しました。ご意見・不具合の報告を開発者に送れます',
         en: 'New "FB" button in the header: send feedback or a bug report to the developer' }
@@ -1109,6 +1119,70 @@
   }
   I18N.onChange(applyLanguage);
   applyLanguage();
+
+  // Quick tooltips: the browser's own `title` tooltip waits about 1-2 s, too slow for icon-only
+  // buttons. For a mouse pointer, show the element's `title` in our own bubble after TIP_DELAY_MS
+  // instead. The `title` is lifted into data-tip while hovering (so the native tooltip never
+  // appears) and put back on leave, so i18n.js can keep rewriting `title` on a language switch.
+  // Touch and pen are left alone (no hover there).
+  const TIP_DELAY_MS = 500;
+
+  function initQuickTips() {
+    if (!document.body || typeof document.createElement !== 'function') return;  // headless test stubs
+    const bubble = document.createElement('div');
+    bubble.className = 'quick-tip';
+    bubble.setAttribute('role', 'tooltip');
+    bubble.hidden = true;
+    document.body.appendChild(bubble);
+    let target = null;
+    let timer = 0;
+
+    function place() {
+      const r = target.getBoundingClientRect();
+      const b = bubble.getBoundingClientRect();
+      const left = Math.min(Math.max(8, r.left + r.width / 2 - b.width / 2), window.innerWidth - b.width - 8);
+      let top = r.bottom + 6;
+      if (top + b.height > window.innerHeight - 8) top = r.top - b.height - 6;  // no room below
+      bubble.style.left = left + 'px';
+      bubble.style.top = top + 'px';
+    }
+
+    function hide() {
+      clearTimeout(timer);
+      bubble.hidden = true;
+      if (target) {
+        // put the title back unless something (i18n) already set a fresh one
+        if (!target.hasAttribute('title')) target.setAttribute('title', target.dataset.tip);
+        delete target.dataset.tip;
+        target = null;
+      }
+    }
+
+    document.addEventListener('pointerover', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      const el = e.target.closest('[title], [data-tip]');
+      if (el === target) return;
+      hide();
+      if (!el || !el.getAttribute('title')) return;
+      target = el;
+      target.dataset.tip = target.getAttribute('title');
+      target.removeAttribute('title');
+      timer = setTimeout(() => {
+        if (!target || !document.contains(target)) return;
+        bubble.textContent = target.dataset.tip;
+        bubble.hidden = false;
+        place();
+      }, TIP_DELAY_MS);
+    });
+    document.addEventListener('pointerout', (e) => {
+      if (target && !target.contains(e.relatedTarget)) hide();
+    });
+    document.addEventListener('pointerdown', hide);
+    document.addEventListener('keydown', hide);
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('blur', hide);
+  }
+  initQuickTips();
 
   // register service worker for offline use (ignored when opened via file://)
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

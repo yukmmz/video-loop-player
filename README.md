@@ -8,7 +8,7 @@ at a conference poster table. No dependencies, no build step, a single-file app.
 
 **→ [Open App](https://yukmmz.github.io/video-loop-player/)**
 
-**Current version: v1.11.0**
+**Current version: v1.12.0**
 
 ## Features
 
@@ -119,6 +119,7 @@ one entry to `CHANGELOG` in `index.html` (the in-app changelog; its first entry 
 | 1.9.0 | Version shown next to the app name (tap for the changelog), ⛶ (full screen) and ⚙ (settings) at the right end of the header, settings with language / share (QR) / changelog / other apps, English UI (Japanese / English switch), QR button moved from the header into settings, red dot on ⚙ for a new version |
 | 1.10.0 | "How to use" moved to a window opened by the ? button in the header (or the ? key) (removed the old "❔ Help" and the inline instruction panel, added a keyboard shortcut list), header full-screen button turned into an icon (a "shrink" shape while in full screen), the exit button at the top right in full screen also uses the shrink icon, supported video formats listed in "How to use" |
 | 1.11.0 | "FB" button in the header (just left of ?): send feedback or a bug report to the developer |
+| 1.12.0 | Button hints (e.g. ⛶ FB ? ⚙) appear after 0.5 s when you hover with the mouse, instead of the browser's slower tooltip |
 
 ## Known limitations (iOS Safari)
 
