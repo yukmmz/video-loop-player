@@ -43,9 +43,12 @@
                   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
   header button { white-space:nowrap; flex:0 0 auto; }
   .hdr-lbl { margin-left:.35em; }
-  /* phones: Controls shrinks to its icon so ?, ⛶ and ⚙ stay on screen */
+  /* phones: Controls shrinks to its icon so ⛶, FB, ? and ⚙ stay on screen;
+     on the narrowest phones the app name is cut with "…" rather than pushing ⚙ off */
   @media (max-width:600px) {
-    header { gap:6px; padding:8px; }
+    header { gap:4px; padding:8px; }
+    .app-brand { min-width:0; }
+    .app-title { min-width:0; overflow:hidden; text-overflow:ellipsis; }
     header .hdr-lbl { display:none; }
     header .title { visibility:hidden; }   /* no room; keeps its flex:1 spacing */
     header button:not(.btn-icon) { min-width:44px; padding:10px; }
@@ -188,6 +191,26 @@
                    background:#f4f4f6; font-family:inherit; font-size:.8rem; line-height:1.5; }
   #helpClose { align-self:center; }
   #help-btn { font-size:1.35rem; font-weight:700; }
+  /* "FB" packed edge to edge inside the 36x36 key: bold, squeezed sideways, no extra spacing */
+  #feedback-btn .fb-mark { display:inline-block; font-size:1.44rem; font-weight:384;
+                           font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",Roboto,sans-serif;
+                           letter-spacing:-.05em; line-height:1; transform:scaleX(.74); }
+
+  /* feedback window (header FB): same card as the help window */
+  #feedbackOverlay { position:fixed; inset:0; z-index:80; display:flex;
+                     align-items:center; justify-content:center;
+                     background:rgba(0,0,0,0.72); }
+  .feedback-lead, .feedback-note { margin:0; font-size:.85rem; color:#555; }
+  .feedback-message, .feedback-contact { width:100%; font:inherit; font-size:15px;
+                     padding:8px 10px; border:1px solid #bbb; border-radius:10px;
+                     background:#fff; color:#111; }
+  .feedback-message { resize:vertical; min-height:120px; }
+  .feedback-hp { position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
+  .feedback-status { margin:0; min-height:1.2em; font-size:.85rem; font-weight:700; }
+  .feedback-status.ok { color:#15803d; }
+  .feedback-status.err { color:#dc2626; }
+  .feedback-actions { display:flex; gap:8px; justify-content:flex-end; }
+  #feedbackSend:disabled { opacity:.6; }
   .fs-icon { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2.2;
              stroke-linecap:round; stroke-linejoin:round; }
   #fullscreen-btn .fs-exit,
@@ -216,6 +239,8 @@
     <svg class="fs-icon fs-enter" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
     <svg class="fs-icon fs-exit" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5"/></svg>
   </button>
+  <button id="feedback-btn" class="btn btn-icon" type="button"
+          data-i18n-title="c.feedback" data-i18n-aria-label="c.feedback" title="フィードバックを送る" aria-label="フィードバックを送る"><span class="fb-mark" aria-hidden="true">FB</span></button>
   <button id="help-btn" class="btn btn-icon" type="button"
           data-i18n-title="c.help" data-i18n-aria-label="c.help" title="使い方" aria-label="使い方">?</button>
   <button id="settings-btn" class="btn-icon" type="button"
@@ -356,6 +381,27 @@
   </div>
 </div>
 
+<!-- Feedback: the header FB button opens this; sendFeedback() posts to the shared GAS web app -->
+<div id="feedbackOverlay" hidden>
+  <form id="feedbackForm" class="qrcard changelog-card feedback-card" role="dialog"
+        data-i18n-aria-label="c.feedback" aria-label="フィードバックを送る" novalidate>
+    <h2 class="changelog-title" data-i18n="c.feedback">フィードバックを送る</h2>
+    <p class="feedback-lead" data-i18n="c.feedbackLead"></p>
+    <textarea id="feedbackMessage" class="feedback-message" maxlength="2000" rows="6" required
+              data-i18n-placeholder="c.feedbackPlaceholder" data-i18n-aria-label="c.feedbackMessage"></textarea>
+    <input id="feedbackContact" class="feedback-contact" type="text" maxlength="200" autocomplete="email"
+           data-i18n-placeholder="c.feedbackContact" data-i18n-aria-label="c.feedbackContact">
+    <!-- honeypot: invisible to people, bots fill it in and are ignored by the server -->
+    <input id="feedbackWebsite" class="feedback-hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <p class="feedback-note" data-i18n="c.feedbackNote"></p>
+    <p id="feedbackStatus" class="feedback-status" role="status" aria-live="polite"></p>
+    <div class="feedback-actions">
+      <button id="feedbackClose" type="button" data-i18n="c.close">閉じる</button>
+      <button id="feedbackSend" class="primary" type="submit" data-i18n="c.feedbackSend">送信</button>
+    </div>
+  </form>
+</div>
+
 <script src="i18n.js"></script>
 <script>
 (() => {
@@ -408,7 +454,21 @@
   const changelogList = $('changelogList');
   const changelogClose = $('changelogClose');
 
-  const APP_VERSION = '1.10.0';
+  const feedbackBtn = $('feedback-btn');
+  const feedbackOverlay = $('feedbackOverlay');
+  const feedbackForm = $('feedbackForm');
+  const feedbackMessage = $('feedbackMessage');
+  const feedbackContact = $('feedbackContact');
+  const feedbackWebsite = $('feedbackWebsite');
+  const feedbackStatus = $('feedbackStatus');
+  const feedbackSend = $('feedbackSend');
+  const feedbackClose = $('feedbackClose');
+
+  const APP_VERSION = '1.11.0';
+  const APP_ID = 'video-loop-player';
+  // Shared feedback endpoint (Google Apps Script web app, one for every yukmmz.github.io app).
+  // Public on purpose: it can only append a row to a sheet and post to a Discord channel.
+  const FEEDBACK_URL = 'https://script.google.com/macros/s/AKfycbxFJ-rTK2e5h05r6_j0RJJu-1Fo4Or3nsAnYcnGXC2i9I8FEdOIbNaXI1BfjunkQHEP/exec';
   // QR images encode these fixed URLs; keep the shown text identical to them
   const APP_URL = 'https://yukmmz.github.io/video-loop-player/';
   const SRC_URL = 'https://github.com/yukmmz/video-loop-player';
@@ -420,6 +480,10 @@
   // here (the first entry must match APP_VERSION). Written for users, in both
   // languages.
   const CHANGELOG = [
+    { version: '1.11.0', date: '2026-10-04', items: [
+      { ja: 'ヘッダーに「FB」ボタンを追加しました。ご意見・不具合の報告を開発者に送れます',
+        en: 'New "FB" button in the header: send feedback or a bug report to the developer' }
+    ] },
     { version: '1.10.0', date: '2026-10-01', items: [
       { ja: '使い方はヘッダーの ? ボタンで開くようになりました（? キーでも開きます）',
         en: 'How to use now opens from the ? button in the header (or the ? key)' },
@@ -512,6 +576,12 @@
       'c.showQr': 'QR コードを表示', 'c.changelog': '更新履歴', 'c.showChangelog': '表示',
       'c.otherApps': '他のアプリ', 'c.openPortal': 'アプリ一覧を開く', 'c.data': 'データ',
       'c.clearData': '保存データを消す', 'c.fullscreen': '全画面表示', 'c.exitFullscreen': '全画面を終了', 'c.help': '使い方',
+      'c.feedback': 'フィードバックを送る', 'c.feedbackLead': 'ご意見・ご要望・不具合の報告をお寄せください。',
+      'c.feedbackMessage': 'フィードバックの内容', 'c.feedbackPlaceholder': '使ってみた感想、困ったこと、ほしい機能など',
+      'c.feedbackContact': '連絡先（任意・返信がほしい場合）',
+      'c.feedbackNote': '送信を押したときに、書いた内容とアプリ名・バージョン・表示言語だけを開発者に送ります。',
+      'c.feedbackSend': '送信', 'c.feedbackSending': '送信中…', 'c.feedbackThanks': '送信しました。ありがとうございます！',
+      'c.feedbackEmpty': '内容を入力してください。', 'c.feedbackError': '送信できませんでした。時間をおいてもう一度お試しください。',
       noVideo: 'no video', collapseTitle: '操作パネルを畳む/出す',
       controlsLabel: '操作',
       prevFrame: '前のコマ', nextFrame: '次のコマ', playPause: '再生/停止',
@@ -552,6 +622,12 @@
       'c.showQr': 'Show QR codes', 'c.changelog': 'Changelog', 'c.showChangelog': 'Show',
       'c.otherApps': 'Other apps', 'c.openPortal': 'Open app list', 'c.data': 'Data',
       'c.clearData': 'Clear saved data', 'c.fullscreen': 'Full screen', 'c.exitFullscreen': 'Exit full screen', 'c.help': 'How to use',
+      'c.feedback': 'Send feedback', 'c.feedbackLead': 'Comments, requests and bug reports are welcome.',
+      'c.feedbackMessage': 'Your feedback', 'c.feedbackPlaceholder': 'What you liked, what was hard, what you would like to see…',
+      'c.feedbackContact': 'Contact (optional, if you would like a reply)',
+      'c.feedbackNote': 'Only what you write, plus the app name, version and display language, is sent to the developer when you press Send.',
+      'c.feedbackSend': 'Send', 'c.feedbackSending': 'Sending…', 'c.feedbackThanks': 'Sent. Thank you!',
+      'c.feedbackEmpty': 'Please write something first.', 'c.feedbackError': 'Could not send. Please try again later.',
       noVideo: 'no video', collapseTitle: 'Hide / show the controls',
       controlsLabel: 'Controls',
       prevFrame: 'Previous frame', nextFrame: 'Next frame', playPause: 'Play / pause',
@@ -819,13 +895,14 @@
 
   function anyModalOpen() {
     return !settingsPanel.hidden || !qrOverlay.hidden || !changelogOverlay.hidden
-        || !helpOverlay.hidden;
+        || !helpOverlay.hidden || !feedbackOverlay.hidden;
   }
   function closeModals() {
     setSettingsOpen(false);
     qrOverlay.hidden = true;
     changelogOverlay.hidden = true;
     helpOverlay.hidden = true;
+    feedbackOverlay.hidden = true;
   }
 
   // "How to use" window: header ? button or the ? key; Close, outside tap, Esc
@@ -838,6 +915,52 @@
   helpClose.addEventListener('click', () => { helpOverlay.hidden = true; });
   helpOverlay.addEventListener('click', (e) => {
     if (e.target === helpOverlay) helpOverlay.hidden = true;
+  });
+
+  // Feedback window: header FB button; Close, outside tap, Esc (also from
+  // inside the text fields: the global key handler closes any open window first)
+  function openFeedback() {
+    closeModals();
+    feedbackStatus.textContent = '';
+    feedbackStatus.className = 'feedback-status';
+    feedbackOverlay.hidden = false;
+    feedbackMessage.focus();
+  }
+  function setFeedbackStatus(key, kind) {
+    feedbackStatus.textContent = t(key);
+    feedbackStatus.className = 'feedback-status' + (kind ? ' ' + kind : '');
+  }
+  // Post the message to the shared GAS endpoint. Sent as text/plain so the
+  // browser makes a "simple" request: GAS cannot answer a CORS preflight.
+  function sendFeedback(e) {
+    e.preventDefault();
+    const message = feedbackMessage.value.trim();
+    if (!message) { setFeedbackStatus('c.feedbackEmpty', 'err'); return; }
+    feedbackSend.disabled = true;
+    setFeedbackStatus('c.feedbackSending', '');
+    fetch(FEEDBACK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        app: APP_ID, version: APP_VERSION, lang: I18N.lang(), message: message,
+        contact: feedbackContact.value.trim(), website: feedbackWebsite.value
+      })
+    }).then((res) => res.json()).then((res) => {
+      if (!res || !res.ok) throw new Error(res && res.error);
+      feedbackMessage.value = '';
+      feedbackContact.value = '';
+      setFeedbackStatus('c.feedbackThanks', 'ok');
+    }).catch(() => {
+      setFeedbackStatus('c.feedbackError', 'err');
+    }).then(() => {
+      feedbackSend.disabled = false;
+    });
+  }
+  feedbackBtn.addEventListener('click', openFeedback);
+  feedbackForm.addEventListener('submit', sendFeedback);
+  feedbackClose.addEventListener('click', () => { feedbackOverlay.hidden = true; });
+  feedbackOverlay.addEventListener('click', (e) => {
+    if (e.target === feedbackOverlay) feedbackOverlay.hidden = true;
   });
 
   // collapse / expand the controls panel

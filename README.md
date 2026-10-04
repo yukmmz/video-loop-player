@@ -8,7 +8,7 @@ at a conference poster table. No dependencies, no build step, a single-file app.
 
 **→ [Open App](https://yukmmz.github.io/video-loop-player/)**
 
-**Current version: v1.10.0**
+**Current version: v1.11.0**
 
 ## Features
 
@@ -31,6 +31,9 @@ at a conference poster table. No dependencies, no build step, a single-file app.
   Close with ✕, a tap outside, or Esc. A red dot appears on ⚙ the first time you open a new version.
 - **How to use (?)**: the ? in the header (just left of ⚙) or the `?` key opens the how-to window
   (basic operation, keyboard shortcuts, notes for iPad). Close with Close, a tap outside, or Esc.
+- **Feedback (FB)**: the FB in the header (just left of ?) opens a window to send comments or a bug
+  report to the developer (contact is optional). Nothing is sent until you press Send
+  (see [Saved data](#saved-data)). Close with Close, a tap outside, or Esc.
 - **QR codes**: Settings → "Show QR codes" shows QR codes for the app URL and the source side by side
   (so visitors can open it on their phones). Close with Close, a tap outside, or Esc.
 - **Version display**: the version is shown small next to the app name at the top left. Tap it to open the changelog.
@@ -83,6 +86,9 @@ The app keeps only two small values in the browser (`localStorage`): the chosen 
 and the videos are never uploaded. When added to the home screen, the Service Worker also caches
 the app's own files (not your videos) so it can start offline.
 
+The only thing the app ever sends anywhere is what you write in the FB (feedback) window, and only
+when you press Send, together with the app name, version and display language.
+
 There is no "clear saved data" button; to remove these, clear this site's data in the browser settings.
 
 ## Versioning
@@ -112,6 +118,7 @@ one entry to `CHANGELOG` in `index.html` (the in-app changelog; its first entry 
 | 1.8.0 | Tidied the control bar (removed frame-step buttons, moved help/QR to the header) |
 | 1.9.0 | Version shown next to the app name (tap for the changelog), ⛶ (full screen) and ⚙ (settings) at the right end of the header, settings with language / share (QR) / changelog / other apps, English UI (Japanese / English switch), QR button moved from the header into settings, red dot on ⚙ for a new version |
 | 1.10.0 | "How to use" moved to a window opened by the ? button in the header (or the ? key) (removed the old "❔ Help" and the inline instruction panel, added a keyboard shortcut list), header full-screen button turned into an icon (a "shrink" shape while in full screen), the exit button at the top right in full screen also uses the shrink icon, supported video formats listed in "How to use" |
+| 1.11.0 | "FB" button in the header (just left of ?): send feedback or a bug report to the developer |
 
 ## Known limitations (iOS Safari)
 
