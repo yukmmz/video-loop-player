@@ -111,7 +111,7 @@ one entry to `CHANGELOG` in `index.html` (the in-app changelog; its first entry 
 | 1.7.3 | Two QR codes side by side (left = app, right = source code) |
 | 1.8.0 | Tidied the control bar (removed frame-step buttons, moved help/QR to the header) |
 | 1.9.0 | Version shown next to the app name (tap for the changelog), ⛶ (full screen) and ⚙ (settings) at the right end of the header, settings with language / share (QR) / changelog / other apps, English UI (Japanese / English switch), QR button moved from the header into settings, red dot on ⚙ for a new version |
-| 1.10.0 | "How to use" moved to a window opened by the ? button in the header (or the ? key) (removed the old "❔ Help" and the inline instruction panel, added a keyboard shortcut list), header full-screen button turned into an icon (a "shrink" shape while in full screen), the exit button at the top right in full screen also uses the shrink icon |
+| 1.10.0 | "How to use" moved to a window opened by the ? button in the header (or the ? key) (removed the old "❔ Help" and the inline instruction panel, added a keyboard shortcut list), header full-screen button turned into an icon (a "shrink" shape while in full screen), the exit button at the top right in full screen also uses the shrink icon, supported video formats listed in "How to use" |
 
 ## Known limitations (iOS Safari)
 
